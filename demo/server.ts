@@ -185,14 +185,35 @@ async function main(): Promise<void> {
         const mode: SearchMode =
           modeParam === "vector" || modeParam === "keyword" ? modeParam : "hybrid";
         const typo = url.searchParams.get("typo") !== "off"; // default on
-        if (!q) {
-          sendJson(req, res, 200, { query: "", mode, ms: 0, count: index.meta.count, results: [] });
+        const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0);
+        const facetsParam = url.searchParams.get("facets");
+        const facets = facetsParam
+          ? facetsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10)
+          : undefined;
+        let filter: Record<string, unknown> | undefined;
+        try {
+          const fp = url.searchParams.get("filter");
+          if (fp) filter = JSON.parse(fp);
+        } catch {
+          filter = undefined; // ignore malformed filters
+        }
+        if (!q && !filter) {
+          sendJson(req, res, 200, { query: "", mode, ms: 0, count: index.meta.count, total: 0, results: [] });
           return;
         }
         const t0 = performance.now();
-        const results = await searcher.search(q, k, { mode, typo });
+        const resp = await searcher.search(q, k, { mode, typo, offset, facets, filter });
         const ms = +(performance.now() - t0).toFixed(1);
-        sendJson(req, res, 200, { query: q, mode, ms, count: index.meta.count, results });
+        sendJson(req, res, 200, {
+          query: q,
+          mode,
+          ms,
+          count: index.meta.count,
+          total: resp.total,
+          offset: resp.offset,
+          results: resp.hits,
+          facets: resp.facets,
+        });
         return;
       }
 

@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   // 2. Search it — by meaning, not just keywords.
   const searcher = await createSearcher(index);
   for (const q of ["something for gaming", "make coffee at home"]) {
-    const hits = await searcher.search(q, 3);
+    const { hits } = await searcher.search(q, 3);
     console.log(`\n"${q}"`);
     for (const h of hits) {
       console.log(`  ${h.score.toFixed(3)}  ${h.product.title}  [${(h.signals ?? []).join("+")}]`);

@@ -17,8 +17,9 @@ import {
   DEFAULT_TYPO,
 } from "../src/hybrid.js";
 import { searchVectors, createSearcher } from "../src/search.js";
+import { matchesFilter, computeFacets } from "../src/facets.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
-import type { PragmaIndex, IndexItem } from "../src/types.js";
+import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
 
 const item = (id: string, title: string): IndexItem => ({ id, vector: [], payload: { id, title } });
 
@@ -142,4 +143,30 @@ test("createSearcher rejects an index missing model/dtype", async () => {
     () => createSearcher({ meta: { version: 1, model: "", dtype: "q8", dim: 2 }, items: [] } as unknown as PragmaIndex),
     /model\/dtype/,
   );
+});
+
+// ---------- filtering ----------
+test("matchesFilter: scalar, array OR, numeric range, and AND across fields", () => {
+  const p: Product = { id: 1, title: "X", category: "Laptops", price: 900, tags: ["gaming", "rgb"] };
+  assert.ok(matchesFilter(p, { category: "Laptops" }));
+  assert.ok(!matchesFilter(p, { category: "Phones" }));
+  assert.ok(matchesFilter(p, { category: ["Phones", "Laptops"] })); // OR
+  assert.ok(matchesFilter(p, { tags: "gaming" })); // array-field membership
+  assert.ok(matchesFilter(p, { tags: ["office", "rgb"] })); // array field, OR
+  assert.ok(matchesFilter(p, { price: { lte: 1000 } }));
+  assert.ok(!matchesFilter(p, { price: { gte: 1000 } }));
+  assert.ok(matchesFilter(p, { category: "Laptops", price: { gte: 500, lte: 1000 } })); // AND
+  assert.ok(!matchesFilter(p, { category: "Laptops", price: { lte: 500 } }));
+});
+
+// ---------- facets ----------
+test("computeFacets counts values (incl. array fields), sorted by count then name", () => {
+  const items: Product[] = [
+    { id: 1, title: "a", category: "Laptops", tags: ["gaming"] },
+    { id: 2, title: "b", category: "Laptops", tags: ["gaming", "rgb"] },
+    { id: 3, title: "c", category: "Phones", tags: ["rgb"] },
+  ];
+  const f = computeFacets(items, ["category", "tags"]);
+  assert.deepEqual(f.category, [{ value: "Laptops", count: 2 }, { value: "Phones", count: 1 }]);
+  assert.deepEqual(f.tags, [{ value: "gaming", count: 2 }, { value: "rgb", count: 2 }]);
 });

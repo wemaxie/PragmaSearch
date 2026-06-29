@@ -21,7 +21,13 @@ export type {
   SearchResult,
   SearchMode,
   SearchSignal,
+  Filter,
+  FilterCondition,
+  FacetValue,
+  SearchResponse,
 } from "./types.js";
+
+export { matchesFilter, computeFacets } from "./facets.js";
 
 export {
   createEmbedder,

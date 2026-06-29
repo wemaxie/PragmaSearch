@@ -7,12 +7,15 @@ import {
   type KeywordIndex,
   type TypoOptions,
 } from "./hybrid.js";
+import { matchesFilter, computeFacets } from "./facets.js";
 import type {
   PragmaIndex,
   SearchResult,
   SearchMode,
   SearchSignal,
   IndexItem,
+  Filter,
+  SearchResponse,
 } from "./types.js";
 
 /** Dot product. For L2-normalized vectors this equals cosine similarity. */
@@ -46,7 +49,6 @@ export function searchVectors(
   return scored.slice(0, k);
 }
 
-const DEFAULT_POOL = 50; // candidates pulled from each layer before fusion
 const DEFAULT_RRF_K = 60;
 const EXACT_BOOST = 1.0; // dominant: a verbatim title match should win outright
 
@@ -55,17 +57,24 @@ export interface SearchOptions {
   mode?: SearchMode;
   /** RRF damping constant. */
   rrfK?: number;
-  /** How many candidates to pull from each layer before fusing. */
-  pool?: number;
   /**
    * Typo tolerance for the keyword layer: `true` (default) / `false`, or a config
    * object ({ minLength, secondTypoLength, penalty }). Lets "opple" match "apple".
    */
   typo?: boolean | TypoOptions;
+  /** Restrict results to products matching this filter (e.g. `{ category: "Laptops", price: { lte: 1000 } }`). */
+  filter?: Filter;
+  /** Fields to compute facet (value→count) buckets for over the filtered set. */
+  facets?: string[];
+  /** Max facet values returned per field (default 20). */
+  maxFacetValues?: number;
+  /** Pagination offset into the ranked result set (default 0). */
+  offset?: number;
 }
 
 export interface Searcher {
-  search(query: string, k?: number, opts?: SearchOptions): Promise<SearchResult[]>;
+  /** Run a search and return a page of hits plus totals + facet counts. */
+  search(query: string, k?: number, opts?: SearchOptions): Promise<SearchResponse>;
   index: PragmaIndex;
   embedder: Embedder;
   keyword: KeywordIndex;
@@ -131,54 +140,76 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     query: string,
     k = 10,
     opts: SearchOptions = {},
-  ): Promise<SearchResult[]> {
+  ): Promise<SearchResponse> {
     const q = query.trim();
-    if (!q) return [];
-
     const mode = opts.mode ?? "hybrid";
-    const pool = opts.pool ?? DEFAULT_POOL;
     const rrfK = opts.rrfK ?? DEFAULT_RRF_K;
+    const offset = Math.max(0, Math.floor(opts.offset ?? 0));
+    const limit = Math.max(0, k);
 
-    // Keyword-only mode: no embedding needed.
-    if (mode === "keyword") {
-      return keyword.search(q, k, opts.typo).map((h) => {
-        const item = byId.get(h.id)!;
-        return {
-          id: item.payload.id,
-          score: h.score,
-          product: item.payload,
-          signals: ["keyword"] as SearchSignal[],
-        };
-      });
+    // 1. Narrow to the items passing the filter.
+    const candidates = opts.filter
+      ? index.items.filter((it) => matchesFilter(it.payload, opts.filter as Filter))
+      : index.items;
+    const candidateIds = new Set(candidates.map((it) => String(it.id)));
+
+    // 2. Rank the WHOLE filtered set (so pagination + totals are correct).
+    let ranked: { id: string; score: number; signals: SearchSignal[] }[];
+
+    if (!q) {
+      // Browse mode: no query → filtered set in catalog order (lets a UI filter without searching).
+      ranked = candidates.map((it) => ({ id: String(it.id), score: 0, signals: [] }));
+    } else if (mode === "keyword") {
+      ranked = keyword
+        .search(q, candidates.length || 1, opts.typo)
+        .filter((h) => candidateIds.has(h.id))
+        .map((h) => ({ id: h.id, score: h.score, signals: ["keyword"] as SearchSignal[] }));
+    } else {
+      const queryVector = await embedQuery(q);
+      const vScored = candidates
+        .map((it) => ({ id: String(it.id), score: dot(queryVector, it.vector) }))
+        .sort((a, b) => b.score - a.score);
+
+      if (mode === "vector") {
+        ranked = vScored.map((r) => ({ id: r.id, score: r.score, signals: ["vector"] as SearchSignal[] }));
+      } else {
+        // hybrid: fuse vector + keyword rankings with RRF, then boost exact title matches.
+        const vIds = vScored.map((r) => r.id);
+        const kIds = keyword
+          .search(q, candidates.length || 1, opts.typo)
+          .filter((h) => candidateIds.has(h.id))
+          .map((h) => h.id);
+        const fused = rrfFuse([vIds, kIds], rrfK);
+        const exact = exactTitleMatches(q, candidates);
+        for (const id of exact) fused.set(id, (fused.get(id) ?? 0) + EXACT_BOOST);
+        const vSet = new Set(vIds);
+        const kSet = new Set(kIds);
+        ranked = [...fused.entries()].map(([id, score]) => {
+          const signals: SearchSignal[] = [];
+          if (vSet.has(id)) signals.push("vector");
+          if (kSet.has(id)) signals.push("keyword");
+          if (exact.has(id)) signals.push("exact");
+          return { id, score, signals };
+        });
+      }
     }
 
-    const queryVector = await embedQuery(q);
+    ranked.sort((a, b) => b.score - a.score);
 
-    if (mode === "vector") {
-      return searchVectors(index, queryVector, k);
-    }
-
-    // Hybrid: fuse vector + keyword rankings with RRF, then boost exact title matches.
-    const vIds = searchVectors(index, queryVector, pool).map((r) => String(r.id));
-    const kIds = keyword.search(q, pool, opts.typo).map((h) => h.id);
-    const fused = rrfFuse([vIds, kIds], rrfK);
-
-    const exact = exactTitleMatches(q, index.items);
-    for (const id of exact) fused.set(id, (fused.get(id) ?? 0) + EXACT_BOOST);
-
-    const vSet = new Set(vIds);
-    const kSet = new Set(kIds);
-
-    const results: SearchResult[] = [...fused.entries()].map(([id, score]) => {
-      const item = byId.get(id)!;
-      const signals: SearchSignal[] = [];
-      if (vSet.has(id)) signals.push("vector");
-      if (kSet.has(id)) signals.push("keyword");
-      if (exact.has(id)) signals.push("exact");
-      return { id: item.payload.id, score, product: item.payload, signals };
+    // 3. Paginate + materialize the page.
+    const total = ranked.length;
+    const hits: SearchResult[] = ranked.slice(offset, offset + limit).map((r) => {
+      const item = byId.get(r.id)!;
+      return { id: item.payload.id, score: r.score, product: item.payload, signals: r.signals };
     });
-    results.sort((a, b) => b.score - a.score);
-    return results.slice(0, k);
+
+    // 4. Facet counts over the filtered set (the refinement sidebar).
+    const facets =
+      opts.facets && opts.facets.length
+        ? computeFacets(candidates.map((it) => it.payload), opts.facets, opts.maxFacetValues ?? 20)
+        : undefined;
+
+    return { hits, total, offset, limit, facets };
   }
 
   return { search, index, embedder, keyword };

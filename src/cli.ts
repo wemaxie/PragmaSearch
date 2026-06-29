@@ -129,13 +129,13 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   const searcher = await createSearcher(index);
 
   const t0 = performance.now();
-  const results = await searcher.search(query, k, { mode, typo });
+  const { hits, total } = await searcher.search(query, k, { mode, typo });
   const ms = (performance.now() - t0).toFixed(1);
 
   console.log(
-    `\nQuery: "${query}"   (${mode}, ${ms} ms, ${index.meta.count} items)\n`,
+    `\nQuery: "${query}"   (${mode}, ${ms} ms, ${total} of ${index.meta.count} items)\n`,
   );
-  results.forEach((r, i) => {
+  hits.forEach((r, i) => {
     const cur = r.product.currency as string | undefined;
     const price =
       r.product.price != null

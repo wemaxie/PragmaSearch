@@ -66,3 +66,31 @@ export interface SearchResult {
   /** Which layers matched, for transparency in UIs/debugging. */
   signals?: SearchSignal[];
 }
+
+/** A single condition on a product field. AND across fields; OR within an array. */
+export type FilterCondition =
+  | string
+  | number
+  | boolean
+  | (string | number)[]
+  | { gte?: number; lte?: number };
+
+/** A filter over product fields, e.g. `{ category: "Laptops", price: { lte: 1000 } }`. */
+export type Filter = Record<string, FilterCondition>;
+
+/** One facet value and how many filtered items have it. */
+export interface FacetValue {
+  value: string;
+  count: number;
+}
+
+/** Full search response: a page of hits plus the totals and facet counts a UI needs. */
+export interface SearchResponse {
+  hits: SearchResult[];
+  /** Total matches after filtering, before pagination. */
+  total: number;
+  offset: number;
+  limit: number;
+  /** Per requested field: value counts over the filtered set (for a refinement sidebar). */
+  facets?: Record<string, FacetValue[]>;
+}
