@@ -16,20 +16,14 @@ dist/
 Thumbs.db
 *.log
 
-# the generated index is normally committed by the *consumer* of pragmasearch,
-# but for this repo's own demo we regenerate it, so keep it out of git:
-pragmasearch-index.json
+# generated indexes — rebuilt from data/products.json (npm run demo:index) or at deploy
+pragmasearch-index*.json
 
-# large 10k test artifacts — reproducible via `npm run fetch:10k && npm run index:10k`
-pragmasearch-index-10k.json
+# local/private datasets (not part of the public sample)
+data/products-itshop.json
 data/products-10k.json
+data/eponuda.xml
 demo/.server*.log
 
-# it-shop.rs raw feed + products stay private (the deployed server only needs the index)
-data/eponuda.xml
-data/products-itshop.json
-data/.index-itshop.log
-# NOTE: pragmasearch-index-itshop.json IS committed (the server-side demo deploy needs it).
-# Before making this repo PUBLIC OSS, remove that index — it contains it-shop's catalog —
-# and ship only the small English sample instead.
+# baked model cache (Docker)
 .models/

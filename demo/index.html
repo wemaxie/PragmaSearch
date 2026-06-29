@@ -34,7 +34,7 @@
         min-height: 100vh;
         line-height: 1.5;
       }
-      .wrap { max-width: 860px; margin: 0 auto; padding: 56px 22px 80px; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 56px 22px 80px; }
 
       header .badge {
         display: inline-flex; align-items: center; gap: 7px;
@@ -131,7 +131,25 @@
       .sig.keyword { color: #22d3ee; border-color: rgba(34,211,238,.3); background: rgba(34,211,238,.06); }
       .sig.exact { color: #34d399; border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.06); }
 
-      .results { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+      .layout { margin-top: 24px; display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
+      @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+      .facets { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 22px; }
+      .facets[hidden] { display: none; }
+      .facet-group h4 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+      .facet-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; color: var(--muted); cursor: pointer; }
+      .facet-item:hover { color: var(--text); }
+      .facet-item input { accent-color: var(--accent); cursor: pointer; }
+      .facet-item .fc { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+      .facet-item.checked { color: var(--text); }
+      .facet-clear { font-size: 12px; color: var(--accent-2); cursor: pointer; background: none; border: 0; padding: 0; margin-top: 2px; text-align: left; }
+      .results-col { min-width: 0; }
+      .results { display: flex; flex-direction: column; gap: 10px; }
+      .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+      .pager[hidden] { display: none; }
+      .pager .info { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+      .pager button { font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--border); padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+      .pager button:disabled { color: var(--faint); cursor: default; opacity: .5; }
+      .pager button:not(:disabled):hover { border-color: var(--accent); }
       .card {
         display: flex; align-items: center; gap: 14px;
         background: var(--panel); border: 1px solid var(--border);
@@ -155,6 +173,7 @@
         border: 1px solid rgba(34,211,238,.25); background: rgba(34,211,238,.07);
         padding: 1px 8px; border-radius: 999px;
       }
+      .brand { font-size: 11.5px; color: var(--muted); border: 1px solid var(--border); padding: 1px 8px; border-radius: 999px; }
       .price { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
       .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 96px; }
       .score { font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -202,8 +221,14 @@
         </label>
       </div>
 
-      <div class="results" id="results"></div>
-      <div class="empty" id="empty">Start typing to search by meaning.</div>
+      <div class="layout">
+        <aside class="facets" id="facets" hidden></aside>
+        <div class="results-col">
+          <div class="results" id="results"></div>
+          <div class="empty" id="empty">Start typing to search by meaning.</div>
+          <div class="pager" id="pager" hidden></div>
+        </div>
+      </div>
 
       <footer id="footer"></footer>
     </div>
@@ -236,23 +261,17 @@
       const safeUrl = (u) => (/^https?:\/\//i.test(String(u ?? "")) ? String(u) : "");
 
       function render(data) {
-        latencyEl.innerHTML = data.query ? `<b>${data.ms}</b> ms` : "—";
-        if (!data.query) {
+        const results = data.results || [];
+        latencyEl.innerHTML = data.query ? `<b>${data.ms ?? 0}</b> ms` : "—";
+        if (!results.length) {
           resultsEl.innerHTML = "";
           emptyEl.style.display = "block";
-          emptyEl.textContent = "Start typing to search by meaning.";
-          return;
-        }
-        if (!data.results.length) {
-          resultsEl.innerHTML = "";
-          emptyEl.style.display = "block";
-          emptyEl.textContent = "No matches.";
+          emptyEl.textContent = (data.query || buildFilter()) ? "No matches." : "Start typing to search by meaning.";
           return;
         }
         emptyEl.style.display = "none";
-        // Scale the bar by the top score so differences are visible.
-        const top = data.results[0].score || 1;
-        resultsEl.innerHTML = data.results.map((r, i) => {
+        const top = results[0].score || 1;
+        resultsEl.innerHTML = results.map((r, i) => {
           const p = r.product;
           const pct = Math.max(4, Math.round((r.score / top) * 100));
           const priceTxt = p.price != null
@@ -260,6 +279,7 @@
             : "";
           const price = priceTxt ? `<span class="price">${priceTxt}</span>` : "";
           const cat = p.category ? `<span class="cat">${esc(p.category)}</span>` : "";
+          const brand = p.brand ? `<span class="brand">${esc(p.brand)}</span>` : "";
           const sigs = (r.signals || [])
             .map((s) => `<span class="sig ${esc(s)}">${esc(s)}</span>`)
             .join("");
@@ -271,18 +291,18 @@
           const thumb = pimg
             ? `<img class="thumb" src="${esc(pimg)}" loading="lazy" onerror="this.style.display='none'" />`
             : "";
+          const right = r.score > 0
+            ? `<div class="right"><div class="score">${r.score.toFixed(3)}</div><div class="bar"><i style="width:${pct}%"></i></div></div>`
+            : "";
           return `
             <div class="card">
-              <div class="rank">${i + 1}</div>
+              <div class="rank">${offset + i + 1}</div>
               ${thumb}
               <div class="body">
                 <div class="title">${titleInner}</div>
-                <div class="meta">${cat}${price}${sigs}</div>
+                <div class="meta">${cat}${brand}${price}${sigs}</div>
               </div>
-              <div class="right">
-                <div class="score">${r.score.toFixed(3)}</div>
-                <div class="bar"><i style="width:${pct}%"></i></div>
-              </div>
+              ${right}
             </div>`;
         }).join("");
       }
@@ -297,19 +317,111 @@
       const modeHint = document.getElementById("modeHint");
 
       let timer, ctrl;
-      async function run() {
+      let offset = 0;
+      const PER = 12;
+      const refine = { category: new Set(), brand: new Set() };
+      let priceRange = null; // { gte?, lte? } or null
+      const facetsEl = document.getElementById("facets");
+      const pagerEl = document.getElementById("pager");
+
+      const PRICE_RANGES = [
+        { label: "Under $100", lte: 100 },
+        { label: "$100 – $500", gte: 100, lte: 500 },
+        { label: "$500 – $1000", gte: 500, lte: 1000 },
+        { label: "$1000+", gte: 1000 },
+      ];
+
+      function buildFilter() {
+        const f = {};
+        if (refine.category.size) f.category = [...refine.category];
+        if (refine.brand.size) f.brand = [...refine.brand];
+        if (priceRange) f.price = priceRange;
+        return Object.keys(f).length ? f : undefined;
+      }
+
+      function renderFacets(facets) {
+        const filter = buildFilter();
+        if (!facets && !filter) { facetsEl.hidden = true; facetsEl.innerHTML = ""; return; }
+        const groups = [];
+        for (const field of ["category", "brand"]) {
+          const vals = (facets && facets[field]) || [];
+          if (!vals.length && !refine[field].size) continue;
+          const items = vals.map((v) => {
+            const on = refine[field].has(v.value);
+            return `<label class="facet-item ${on ? "checked" : ""}">
+              <input type="checkbox" data-field="${field}" value="${esc(v.value)}" ${on ? "checked" : ""}/>
+              <span>${esc(v.value)}</span><span class="fc">${v.count}</span></label>`;
+          }).join("");
+          groups.push(`<div class="facet-group"><h4>${field}</h4>${items}</div>`);
+        }
+        const priceItems = PRICE_RANGES.map((r, i) => {
+          const on = priceRange && priceRange.gte === r.gte && priceRange.lte === r.lte;
+          return `<label class="facet-item ${on ? "checked" : ""}">
+            <input type="radio" name="price" data-price="${i}" ${on ? "checked" : ""}/>
+            <span>${esc(r.label)}</span></label>`;
+        }).join("");
+        groups.push(`<div class="facet-group"><h4>price</h4>${priceItems}</div>`);
+        facetsEl.innerHTML = groups.join("") + (filter ? `<button class="facet-clear" id="facetClear">✕ Clear all filters</button>` : "");
+        facetsEl.hidden = false;
+
+        facetsEl.querySelectorAll('input[type="checkbox"]').forEach((el) =>
+          el.addEventListener("change", () => {
+            const set = refine[el.dataset.field];
+            el.checked ? set.add(el.value) : set.delete(el.value);
+            run();
+          }));
+        facetsEl.querySelectorAll("input[data-price]").forEach((el) =>
+          el.addEventListener("change", () => {
+            const r = PRICE_RANGES[Number(el.dataset.price)];
+            priceRange = { gte: r.gte, lte: r.lte };
+            run();
+          }));
+        const cl = document.getElementById("facetClear");
+        if (cl) cl.addEventListener("click", () => {
+          refine.category.clear(); refine.brand.clear(); priceRange = null; run();
+        });
+      }
+
+      function renderPager(total) {
+        if (!total || total <= PER) { pagerEl.hidden = true; return; }
+        const from = offset + 1;
+        const to = Math.min(offset + PER, total);
+        pagerEl.innerHTML =
+          `<button id="prevBtn" ${offset === 0 ? "disabled" : ""}>← Prev</button>` +
+          `<span class="info">${from}–${to} of ${total}</span>` +
+          `<button id="nextBtn" ${to >= total ? "disabled" : ""}>Next →</button>`;
+        pagerEl.hidden = false;
+        const prev = document.getElementById("prevBtn");
+        const next = document.getElementById("nextBtn");
+        if (prev) prev.addEventListener("click", () => { offset = Math.max(0, offset - PER); doSearch(); });
+        if (next) next.addEventListener("click", () => { offset += PER; doSearch(); });
+      }
+
+      async function doSearch() {
         const q = qEl.value.trim();
-        hideSuggest();
+        const filter = buildFilter();
+        if (!q && !filter) {
+          render({ query: "", results: [] });
+          facetsEl.hidden = true;
+          pagerEl.hidden = true;
+          return;
+        }
         if (ctrl) ctrl.abort();
         ctrl = new AbortController();
         try {
-          const res = await fetch(
-            `/api/search?q=${encodeURIComponent(q)}&k=12&mode=${mode}&typo=${typo ? "on" : "off"}`,
-            { signal: ctrl.signal },
-          );
-          render(await res.json());
+          let url = `/api/search?q=${encodeURIComponent(q)}&k=${PER}&mode=${mode}&typo=${typo ? "on" : "off"}`
+            + `&offset=${offset}&facets=category,brand`;
+          if (filter) url += `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
+          const res = await fetch(url, { signal: ctrl.signal });
+          const data = await res.json();
+          render(data);
+          renderFacets(data.facets);
+          renderPager(data.total);
         } catch (e) { /* aborted */ }
       }
+
+      // New query or filter change → back to page 1.
+      function run() { offset = 0; hideSuggest(); doSearch(); }
       qEl.addEventListener("input", () => {
         renderSuggest(qEl.value);          // instant, client-side
         clearTimeout(timer);

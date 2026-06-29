@@ -33,6 +33,7 @@ own machine or server** (no cloud, no API keys), so you replace your hosted-sear
 - 🧠 **Semantic search** — understands meaning via vector embeddings ([Transformers.js](https://github.com/huggingface/transformers.js)), not just keywords
 - 🔀 **Hybrid ranking** — fuses vector + **BM25** keyword search with Reciprocal Rank Fusion, plus an exact-match boost for SKUs/brands/part numbers
 - 🔤 **Typo tolerance** — `opple` → `apple`, configurable (length-scaled, à la Algolia)
+- 🎛️ **Filtering, faceting & pagination** — refine by category / brand / price with live facet counts
 - 🌍 **Multilingual** — English by default; any language via a multilingual model
 - 📦 **Zero infrastructure** — one local index file, the model ships with the package; self-host on a $5 VPS
 - 🪶 **One runtime dependency** — just the model runtime. Own your stack.
@@ -48,7 +49,8 @@ own machine or server** (no cloud, no API keys), so you replace your hosted-sear
 | **Your data & user queries** | leave your infrastructure | **stay on your infrastructure** |
 | **Semantic (meaning) search** | paid add-on | **built in** |
 | **Typo tolerance** | ✅ | ✅ |
-| **Facets · pagination · UI widget** | ✅ | 🚧 [on the roadmap](ROADMAP.md) |
+| **Filtering · faceting · pagination** | ✅ | ✅ |
+| **Drop-in UI widget · highlighting** | ✅ | 🚧 [on the roadmap](ROADMAP.md) |
 
 > Built for small-to-mid catalogs (≤ ~50k items). For million-SKU real-time catalogs with
 > merchandising and analytics, the hosted platforms still win — see the [roadmap](ROADMAP.md).

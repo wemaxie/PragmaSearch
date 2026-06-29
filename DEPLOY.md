@@ -1,37 +1,35 @@
-# Deploying the server-side demo
+# Deploying the demo server
 
-This deploys the **server-side** PragmaSearch demo over the it-shop.rs catalog
-(5,041 real products, Serbian, multilingual model). The model is held in RAM, so
-every query is ~40 ms — the browser only sends the query text and gets back small
-JSON, exactly like Algolia, but on your own host for $0/search.
+This deploys the PragmaSearch demo over the bundled sample catalog: hybrid
+search, faceting, typo tolerance, autocomplete. The embedding model is held in
+RAM, so queries are fast — the browser only sends the query text and gets back
+small JSON, like a hosted search box but on your own host for $0/search.
 
-> **Why not Vercel?** Vercel is serverless: every cold start would re-download the
-> ~118 MB multilingual model and `onnxruntime-node` is a native binary that hits
-> Vercel's 250 MB function limit. You'd see multi-second stalls, not "fast". Use a
-> **persistent host** instead — the model loads once at boot and stays warm.
+The `Dockerfile` bakes the model into the image and builds the index from
+`data/products.json` at build time, so the first request is fast. ~512 MB RAM is
+enough for the English model + sample catalog.
 
-Needs **~1 GB RAM** (multilingual model + index in memory). The `Dockerfile` bakes
-the model into the image, so the first request is fast (no cold-start download).
+> **Why a persistent host (not Vercel)?** The server keeps the model in memory.
+> On serverless, every cold start re-loads it and `onnxruntime-node` is a native
+> binary that hits function size limits. Use a host that keeps a process warm.
 
 ## Option A — Railway (easiest)
-1. Push this repo to GitHub (done).
-2. https://railway.app → **New Project → Deploy from GitHub repo** → pick this repo.
-3. Railway detects the `Dockerfile` and deploys. It injects `$PORT` automatically.
-4. Open the generated URL. Done.
+1. Push this repo to GitHub.
+2. https://railway.app → **New Project → Deploy from GitHub repo** → pick it.
+3. Railway detects the `Dockerfile` and deploys; it injects `$PORT` automatically.
+4. Open the generated domain (Settings → Networking → Generate Domain).
 
 ## Option B — Render (Blueprint)
 1. https://render.com → **New + → Blueprint** → connect this repo.
-2. Render reads `render.yaml` and builds the Dockerfile. Use the **Starter** plan
-   (Free = 512 MB may OOM with the multilingual model).
-3. Open the URL.
+2. Render reads `render.yaml` and builds the Dockerfile.
 
 ## Option C — Fly.io
 ```bash
-fly launch        # detects the Dockerfile; pick a region; set VM to >=1GB
+fly launch        # detects the Dockerfile; pick a region
 fly deploy
 ```
 
-## Option D — Any VPS (€5 Hetzner/DO/etc.)
+## Option D — Any VPS
 ```bash
 docker build -t pragmasearch .
 docker run -d -p 80:5173 --name pragmasearch pragmasearch
@@ -41,15 +39,19 @@ docker run -d -p 80:5173 --name pragmasearch pragmasearch
 ## Run it locally (no Docker)
 ```bash
 npm install
-npm run demo:itshop        # -> http://localhost:5173
+npm run demo        # http://localhost:5173
 ```
 
 ## Endpoints
 - `GET /` — the search UI
-- `GET /api/search?q=<query>&mode=hybrid|vector|keyword&typo=on|off` — JSON results
+- `GET /api/search?q=<query>&mode=hybrid|vector|keyword&typo=on|off&offset=<n>&facets=category,brand&filter=<json>`
 - `GET /api/meta` — index metadata (also the health check)
+- `GET /api/titles` — lightweight list for in-browser autocomplete
 
-## Switching catalogs
-The server takes the index file as an argument:
-`npx tsx demo/server.ts <index.json>`, with optional env `PRAGMA_CHIPS` (pipe-separated
-example queries). Regenerate an index with `npm run index:itshop` (or `index:10k`, etc.).
+## Using your own catalog
+Build an index from your products JSON and point the server at it:
+```bash
+npx pragmasearch index your-products.json --out your-index.json
+npx tsx demo/server.ts your-index.json
+```
+Set `PRAGMA_CHIPS` (pipe-separated) to customize the example queries shown in the UI.

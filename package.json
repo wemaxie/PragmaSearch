@@ -37,15 +37,9 @@
     "index": "tsx src/cli.ts index",
     "search": "tsx src/cli.ts search",
     "demo": "tsx demo/server.ts",
-    "example": "tsx examples/quickstart.ts",
     "demo:index": "tsx src/cli.ts index data/products.json",
-    "demo:10k": "tsx demo/server.ts pragmasearch-index-10k.json",
-    "fetch:10k": "tsx scripts/fetch-amazon-10k.ts",
-    "index:10k": "tsx src/cli.ts index data/products-10k.json --out pragmasearch-index-10k.json",
-    "convert:itshop": "tsx scripts/convert-eponuda.ts",
-    "index:itshop": "tsx src/cli.ts index data/products-itshop.json --out pragmasearch-index-itshop.json --model Xenova/multilingual-e5-small --dtype q8",
-    "demo:itshop": "tsx demo/server.ts pragmasearch-index-itshop.json",
-    "eval": "tsx eval/run.ts",
+    "sample": "tsx scripts/make-sample.ts",
+    "example": "tsx examples/quickstart.ts",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
@@ -53,7 +47,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "fast-xml-parser": "^5.9.3",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
