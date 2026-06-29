@@ -18,6 +18,7 @@ import {
 } from "../src/hybrid.js";
 import { searchVectors, createSearcher } from "../src/search.js";
 import { matchesFilter, computeFacets } from "../src/facets.js";
+import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incremental.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
 
@@ -169,4 +170,63 @@ test("computeFacets counts values (incl. array fields), sorted by count then nam
   const f = computeFacets(items, ["category", "tags"]);
   assert.deepEqual(f.category, [{ value: "Laptops", count: 2 }, { value: "Phones", count: 1 }]);
   assert.deepEqual(f.tags, [{ value: "gaming", count: 2 }, { value: "rgb", count: 2 }]);
+});
+
+// ---------- incremental updates ----------
+const mkIndex = (items: IndexItem[]): PragmaIndex => ({
+  meta: { version: 1, model: "m", dtype: "q8", dim: 1, pooling: "mean", normalize: true, count: items.length, builtAt: "" },
+  items,
+});
+
+test("patchPayload updates fields without touching vectors; skips unknown ids", () => {
+  const idx = mkIndex([
+    { id: 1, vector: [0.5], payload: { id: 1, title: "A", price: 100 } },
+    { id: 2, vector: [0.7], payload: { id: 2, title: "B", price: 200 } },
+  ]);
+  const n = patchPayload(idx, [
+    { id: 1, fields: { price: 90, stock: 5 } as Partial<Product> },
+    { id: 99, fields: { price: 1 } },
+  ]);
+  assert.equal(n, 1);
+  assert.equal(idx.items[0].payload.price, 90);
+  assert.equal((idx.items[0].payload as Record<string, unknown>).stock, 5);
+  assert.deepEqual(idx.items[0].vector, [0.5]); // vector untouched
+  assert.equal(idx.items[1].payload.price, 200);
+});
+
+test("removeItems drops by id and updates count", () => {
+  const idx = mkIndex([
+    { id: "a", vector: [1], payload: { id: "a", title: "A" } },
+    { id: "b", vector: [1], payload: { id: "b", title: "B" } },
+    { id: "c", vector: [1], payload: { id: "c", title: "C" } },
+  ]);
+  assert.equal(removeItems(idx, ["b", "x"]), 1);
+  assert.deepEqual(idx.items.map((it) => it.id), ["a", "c"]);
+  assert.equal(idx.meta.count, 2);
+});
+
+test("planUpsert: text-unchanged reuses vector, renamed/new gets re-embedded", () => {
+  const idx = mkIndex([
+    { id: 1, vector: [0.1], payload: { id: 1, title: "Mouse", price: 50 } },
+    { id: 2, vector: [0.2], payload: { id: 2, title: "Keyboard" } },
+  ]);
+  const { toEmbed, toReuse } = planUpsert(idx, [
+    { id: 1, title: "Mouse", price: 40 },     // only price changed → reuse vector
+    { id: 2, title: "Mechanical Keyboard" },  // renamed → re-embed
+    { id: 3, title: "Monitor" },              // new → embed
+  ]);
+  assert.deepEqual(toReuse.map((r) => r.product.id), [1]);
+  assert.deepEqual(toEmbed.map((p) => p.id), [2, 3]);
+});
+
+test("applyUpsert merges embedded + reused and updates count", () => {
+  const idx = mkIndex([{ id: 1, vector: [0.1], payload: { id: 1, title: "Mouse", price: 50 } }]);
+  const reused = [{ item: idx.items[0], product: { id: 1, title: "Mouse", price: 40 } }];
+  const embedded: IndexItem[] = [{ id: 3, vector: [0.9], payload: { id: 3, title: "Monitor" } }];
+  const { added, updated } = applyUpsert(idx, embedded, reused);
+  assert.equal(added, 1);
+  assert.equal(updated, 1);
+  assert.equal(idx.items.length, 2);
+  assert.equal(idx.items[0].payload.price, 40); // reused item's payload swapped
+  assert.equal(idx.meta.count, 2);
 });

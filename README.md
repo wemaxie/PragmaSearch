@@ -129,8 +129,9 @@ model is recorded in the index, so query and document encoders always match. See
 ## 🗺️ Roadmap
 
 Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, pagination**,
-multilingual, CLI + API + demo server. Next: result highlighting, a drop-in search widget
-(React/Vue), and incremental indexing — see **[ROADMAP.md](ROADMAP.md)**.
+**incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
+multilingual, CLI + API + demo server. Next: result highlighting and a drop-in search widget
+(React/Vue) — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community
 

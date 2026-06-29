@@ -117,6 +117,51 @@ typo: { minLength: 4, secondTypoLength: 8, penalty: 0.5 }
 | `PRAGMA_PRODUCTS` | `data/products.json` | Products to build from if the index is missing |
 | `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
+| `PRAGMA_ADMIN_TOKEN` | — | Bearer token that enables the live write endpoints (see below). Unset = writes disabled. |
+
+## Incremental updates (live catalogs)
+
+Re-embedding the whole catalog on every change is wasteful. The expensive part is the
+embedding pass — but **fields that don't change the searchable text (price, stock,
+availability) don't need it.** PragmaSearch separates the two:
+
+**Programmatic** (e.g. from a cron — `patchPayload` needs no model):
+
+```ts
+import { loadIndex, saveIndex, patchPayload, createSearcher } from "pragmasearch";
+
+// price/stock churn — patch the payload, NO re-embedding, no model:
+const index = await loadIndex("pragmasearch-index.json");
+patchPayload(index, [{ id: "SKU1", fields: { price: 1299, stock: 4 } }]);
+await saveIndex("pragmasearch-index.json", index);
+
+// new / renamed products — only the delta is embedded:
+const searcher = await createSearcher(index);
+await searcher.upsert([{ id: "SKU2", title: "New product", price: 99 }]); // returns { added, updated, reembedded }
+searcher.remove(["SKU3"]);
+await saveIndex("pragmasearch-index.json", searcher.index);
+```
+
+`upsert` re-embeds a product only if its searchable text changed; otherwise it keeps the
+existing vector and just swaps the payload. `patchPayload` never touches the model.
+
+**Over HTTP** (point your stock/price crons and publish-queue at the running server; set
+`PRAGMA_ADMIN_TOKEN` to enable, send it as `Authorization: Bearer <token>`):
+
+```bash
+# price/stock — no model, instant:
+curl -X POST $URL/api/patch  -H "Authorization: Bearer $TOKEN" \
+  -d '{"patches":[{"id":"SKU1","fields":{"price":1299,"stock":4}}]}'
+
+# add / update products (embeds only the delta):
+curl -X POST $URL/api/upsert -H "Authorization: Bearer $TOKEN" \
+  -d '{"products":[{"id":"SKU2","title":"New product","price":99}]}'
+
+curl -X POST $URL/api/remove -H "Authorization: Bearer $TOKEN" -d '{"ids":["SKU3"]}'
+```
+
+Each write persists the index to disk and refreshes the autocomplete list. For very high
+write rates, batch updates or save periodically rather than per request.
 
 The server validates and clamps input, rate-limits `/api/search`, sends a restrictive CSP,
 and gzips responses. See [DEPLOY.md](../DEPLOY.md) and [performance](performance.md).

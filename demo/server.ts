@@ -19,7 +19,10 @@ import { gzipSync } from "node:zlib";
 import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
-import type { PragmaIndex, SearchMode } from "../src/types.js";
+import type { PragmaIndex, SearchMode, Product } from "../src/types.js";
+
+// Write endpoints (live index updates) are enabled only when an admin token is set.
+const ADMIN_TOKEN = process.env.PRAGMA_ADMIN_TOKEN;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -133,18 +136,58 @@ function rateLimited(req: IncomingMessage): boolean {
   return false;
 }
 
+/** Authorize a write request against PRAGMA_ADMIN_TOKEN. Writes are off unless the token is set. */
+function authedWrite(req: IncomingMessage): boolean {
+  if (!ADMIN_TOKEN) return false;
+  return String(req.headers["authorization"] ?? "") === `Bearer ${ADMIN_TOKEN}`;
+}
+
+/** Read and JSON-parse a request body, bounded in size. */
+function readJsonBody(req: IncomingMessage, maxBytes = 8_000_000): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > maxBytes) {
+        reject(new Error("payload too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch {
+        reject(new Error("invalid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 async function main(): Promise<void> {
   console.log("Loading model + index ...");
   const index = await getIndex();
   const searcher: Searcher = await createSearcher(index);
 
   // Lightweight title list for instant client-side autocomplete (no model call).
-  // Pre-serialized + pre-gzipped once since it's static.
-  const titles = index.items.map((it) => {
-    const p = it.payload;
-    return { id: p.id, title: p.title, category: p.category, price: p.price, currency: p.currency, image: p.image };
-  });
-  const titlesBody = JSON.stringify({ items: titles });
+  // Rebuilt after live index updates.
+  const buildTitlesBody = (): string =>
+    JSON.stringify({
+      items: index.items.map((it) => {
+        const p = it.payload;
+        return { id: p.id, title: p.title, category: p.category, price: p.price, currency: p.currency, image: p.image };
+      }),
+    });
+  let titlesBody = buildTitlesBody();
+
+  // Persist the in-memory index to disk after a write, and refresh the autocomplete list.
+  async function persist(): Promise<void> {
+    titlesBody = buildTitlesBody();
+    await saveIndex(INDEX_FILE, index);
+  }
 
   // Warm up the model so the first real query is fast.
   await searcher.search("warm up", 1);
@@ -215,6 +258,45 @@ async function main(): Promise<void> {
           facets: resp.facets,
         });
         return;
+      }
+
+      // ---- live index updates (require PRAGMA_ADMIN_TOKEN) ----
+      if (req.method === "POST" && url.pathname.startsWith("/api/")) {
+        const write = ["/api/patch", "/api/upsert", "/api/remove"].includes(url.pathname);
+        if (write) {
+          if (!authedWrite(req)) {
+            sendJson(req, res, ADMIN_TOKEN ? 401 : 403, {
+              error: ADMIN_TOKEN ? "unauthorized" : "write endpoints disabled (set PRAGMA_ADMIN_TOKEN)",
+            });
+            return;
+          }
+          const body = (await readJsonBody(req)) as Record<string, unknown>;
+
+          if (url.pathname === "/api/patch") {
+            // { patches: [{ id, fields }] } — payload-only (price/stock), no re-embed.
+            const patches = Array.isArray(body.patches) ? (body.patches as { id: string | number; fields: Partial<Product> }[]) : [];
+            const patched = searcher.patchPayload(patches);
+            await persist();
+            sendJson(req, res, 200, { patched, count: index.meta.count });
+            return;
+          }
+          if (url.pathname === "/api/upsert") {
+            // { products: [...] } — embeds only new/text-changed; reuses vectors otherwise.
+            const products = Array.isArray(body.products) ? (body.products as Product[]) : [];
+            const result = await searcher.upsert(products);
+            await persist();
+            sendJson(req, res, 200, { ...result, count: index.meta.count });
+            return;
+          }
+          if (url.pathname === "/api/remove") {
+            // { ids: [...] }
+            const ids = Array.isArray(body.ids) ? (body.ids as (string | number)[]) : [];
+            const removed = searcher.remove(ids);
+            await persist();
+            sendJson(req, res, 200, { removed, count: index.meta.count });
+            return;
+          }
+        }
       }
 
       send(req, res, 404, "text/plain; charset=utf-8", "not found");

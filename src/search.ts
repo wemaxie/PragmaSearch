@@ -1,5 +1,5 @@
-import { createEmbedder, queryPrefix, type Embedder } from "./embedder.js";
-import { INDEX_FORMAT_VERSION } from "./index-builder.js";
+import { createEmbedder, queryPrefix, docPrefix, type Embedder } from "./embedder.js";
+import { INDEX_FORMAT_VERSION, productText } from "./index-builder.js";
 import {
   buildKeywordIndex,
   rrfFuse,
@@ -8,11 +8,13 @@ import {
   type TypoOptions,
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
+import { planUpsert, applyUpsert, removeItems, patchPayload, round4 } from "./incremental.js";
 import type {
   PragmaIndex,
   SearchResult,
   SearchMode,
   SearchSignal,
+  Product,
   IndexItem,
   Filter,
   SearchResponse,
@@ -72,9 +74,36 @@ export interface SearchOptions {
   offset?: number;
 }
 
+/** Result of an incremental update. */
+export interface UpsertResult {
+  /** New items added. */
+  added: number;
+  /** Existing items updated (re-embedded text-change + payload-only swaps). */
+  updated: number;
+  /** How many actually went through the model (the delta that needed a vector). */
+  reembedded: number;
+}
+
 export interface Searcher {
   /** Run a search and return a page of hits plus totals + facet counts. */
   search(query: string, k?: number, opts?: SearchOptions): Promise<SearchResponse>;
+
+  /**
+   * Patch payload fields (price, stock, ...) on existing items WITHOUT re-embedding.
+   * Cheap, no model call. Use for the high-frequency, text-unchanged updates.
+   * Returns the number patched. Persist with `saveIndex(searcher.index)` afterwards.
+   */
+  patchPayload(patches: { id: string | number; fields: Partial<Product> }[]): number;
+
+  /**
+   * Add or update products. Only new/text-changed products are embedded (the delta);
+   * text-unchanged ones keep their vector and just swap payload. Rebuilds the keyword index.
+   */
+  upsert(products: Product[]): Promise<UpsertResult>;
+
+  /** Remove items by id. Rebuilds the keyword index. Returns the number removed. */
+  remove(ids: (string | number)[]): number;
+
   index: PragmaIndex;
   embedder: Embedder;
   keyword: KeywordIndex;
@@ -111,10 +140,15 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     );
   }
 
-  const keyword = buildKeywordIndex(index.items);
-  const byId = new Map<string, IndexItem>(
+  // Reassigned on incremental add/remove (text changes invalidate the keyword index).
+  let keyword = buildKeywordIndex(index.items);
+  let byId = new Map<string, IndexItem>(
     index.items.map((it) => [String(it.id), it]),
   );
+  const rebuildDerived = (): void => {
+    keyword = buildKeywordIndex(index.items);
+    byId = new Map(index.items.map((it) => [String(it.id), it]));
+  };
 
   // Small LRU cache of query embeddings — autocomplete chips, warm-ups and repeated
   // queries skip the (dominant) model forward pass.
@@ -212,5 +246,46 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     return { hits, total, offset, limit, facets };
   }
 
-  return { search, index, embedder, keyword };
+  // ---- incremental updates (live catalog sync) ----
+
+  function patch(patches: { id: string | number; fields: Partial<Product> }[]): number {
+    // Mutates payloads in place; byId/items share the same refs, and text is unchanged,
+    // so the keyword index stays valid — no rebuild.
+    return patchPayload(index, patches);
+  }
+
+  async function upsert(products: Product[]): Promise<UpsertResult> {
+    const { toEmbed, toReuse } = planUpsert(index, products);
+    let embedded: IndexItem[] = [];
+    if (toEmbed.length) {
+      const prefix = docPrefix(meta.model);
+      const vectors = await embedder.embed(toEmbed.map((p) => prefix + productText(p)));
+      embedded = toEmbed.map((p, i) => ({
+        id: p.id,
+        vector: vectors[i].map(round4),
+        payload: p,
+      }));
+    }
+    const { added, updated } = applyUpsert(index, embedded, toReuse);
+    rebuildDerived(); // text changed for the (re)embedded items
+    return { added, updated, reembedded: embedded.length };
+  }
+
+  function remove(ids: (string | number)[]): number {
+    const removed = removeItems(index, ids);
+    if (removed) rebuildDerived();
+    return removed;
+  }
+
+  return {
+    search,
+    patchPayload: patch,
+    upsert,
+    remove,
+    index,
+    embedder,
+    get keyword() {
+      return keyword;
+    },
+  };
 }

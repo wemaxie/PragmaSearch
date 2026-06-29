@@ -48,7 +48,15 @@ export {
   createSearcher,
   type Searcher,
   type SearchOptions,
+  type UpsertResult,
 } from "./search.js";
+
+export {
+  patchPayload,
+  removeItems,
+  planUpsert,
+  applyUpsert,
+} from "./incremental.js";
 
 export {
   buildKeywordIndex,
