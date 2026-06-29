@@ -16,7 +16,7 @@
     "e-commerce"
   ],
   "bin": {
-    "pragmasearch": "./dist/cli.js"
+    "pragmasearch": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
