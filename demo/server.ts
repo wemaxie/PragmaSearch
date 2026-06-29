@@ -8,12 +8,13 @@
  * Run:  npx tsx demo/server.ts        (or: npm run demo)
  * Then open http://localhost:5173
  */
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, isAbsolute } from "node:path";
 import { existsSync } from "node:fs";
 import { performance } from "node:perf_hooks";
+import { gzipSync } from "node:zlib";
 
 import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
@@ -36,6 +37,11 @@ const PRODUCTS_FILE = fromEnv(process.env.PRAGMA_PRODUCTS, join(ROOT, "data", "p
 const HTML_FILE = join(__dirname, "index.html");
 const PORT = Number(process.env.PORT ?? 5173);
 
+// Input + abuse limits for the public-facing demo.
+const MAX_QUERY_CHARS = 200; // queries longer than this are truncated (DoS guard)
+const RATE_LIMIT = 30; // requests per window per client
+const RATE_WINDOW_MS = 10_000;
+
 const DEFAULT_CHIPS = [
   "something for gaming",
   "make fresh coffee at home",
@@ -46,6 +52,15 @@ const DEFAULT_CHIPS = [
 const CHIPS = process.env.PRAGMA_CHIPS
   ? process.env.PRAGMA_CHIPS.split("|").map((s) => s.trim()).filter(Boolean)
   : DEFAULT_CHIPS;
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  // Allow the inline demo script/styles and product images over https; lock everything else down.
+  "content-security-policy":
+    "default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+};
 
 /** Load the index, building it from the demo products if it doesn't exist yet. */
 async function getIndex(): Promise<PragmaIndex> {
@@ -62,13 +77,60 @@ async function getIndex(): Promise<PragmaIndex> {
   return index;
 }
 
-function json(res: import("node:http").ServerResponse, code: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.writeHead(code, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
+/** Send a body, gzipped when the client accepts it (cuts the ~1MB titles payload ~5x). */
+function send(
+  req: IncomingMessage,
+  res: ServerResponse,
+  code: number,
+  contentType: string,
+  body: string | Buffer,
+  extra: Record<string, string> = {},
+): void {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  const headers: Record<string, string> = {
+    "content-type": contentType,
+    ...SECURITY_HEADERS,
+    ...extra,
+  };
+  const acceptsGzip = /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""));
+  if (acceptsGzip && buf.length > 600) {
+    res.writeHead(code, { ...headers, "content-encoding": "gzip", vary: "accept-encoding" });
+    res.end(gzipSync(buf));
+  } else {
+    res.writeHead(code, headers);
+    res.end(buf);
+  }
+}
+
+function sendJson(
+  req: IncomingMessage,
+  res: ServerResponse,
+  code: number,
+  body: unknown,
+  cacheControl = "no-store",
+): void {
+  send(req, res, code, "application/json; charset=utf-8", JSON.stringify(body), {
+    "cache-control": cacheControl,
   });
-  res.end(payload);
+}
+
+/** Tiny in-memory token-bucket rate limiter keyed on client IP (behind a proxy on Railway/Render). */
+const buckets = new Map<string, { tokens: number; reset: number }>();
+function rateLimited(req: IncomingMessage): boolean {
+  const ip =
+    String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() ||
+    req.socket.remoteAddress ||
+    "unknown";
+  const now = performance.now();
+  const b = buckets.get(ip);
+  if (!b || now > b.reset) {
+    buckets.set(ip, { tokens: RATE_LIMIT - 1, reset: now + RATE_WINDOW_MS });
+    if (buckets.size > 10_000) buckets.clear(); // crude memory bound
+    return false;
+  }
+  if (b.tokens <= 0) return true;
+  b.tokens--;
+  return false;
 }
 
 async function main(): Promise<void> {
@@ -77,23 +139,16 @@ async function main(): Promise<void> {
   const searcher: Searcher = await createSearcher(index);
 
   // Lightweight title list for instant client-side autocomplete (no model call).
-  // Kept minimal on purpose — it's fetched once by the browser and cached.
+  // Pre-serialized + pre-gzipped once since it's static.
   const titles = index.items.map((it) => {
     const p = it.payload;
-    return {
-      id: p.id,
-      title: p.title,
-      category: p.category,
-      price: p.price,
-      currency: p.currency,
-      image: p.image,
-    };
+    return { id: p.id, title: p.title, category: p.category, price: p.price, currency: p.currency, image: p.image };
   });
+  const titlesBody = JSON.stringify({ items: titles });
+
   // Warm up the model so the first real query is fast.
   await searcher.search("warm up", 1);
-  console.log(
-    `Ready. ${index.meta.count} items · model ${index.meta.model} (${index.meta.dtype}).`,
-  );
+  console.log(`Ready. ${index.meta.count} items · model ${index.meta.model} (${index.meta.dtype}).`);
 
   const html = await readFile(HTML_FILE, "utf8");
 
@@ -102,49 +157,50 @@ async function main(): Promise<void> {
       const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
 
       if (req.method === "GET" && url.pathname === "/") {
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(html);
+        send(req, res, 200, "text/html; charset=utf-8", html);
         return;
       }
 
       if (req.method === "GET" && url.pathname === "/api/meta") {
-        json(res, 200, { meta: index.meta, chips: CHIPS });
+        sendJson(req, res, 200, { meta: index.meta, chips: CHIPS });
         return;
       }
 
-      // Lightweight titles for instant in-browser autocomplete (cached by the browser).
       if (req.method === "GET" && url.pathname === "/api/titles") {
-        const payload = JSON.stringify({ items: titles });
-        res.writeHead(200, {
-          "content-type": "application/json; charset=utf-8",
+        send(req, res, 200, "application/json; charset=utf-8", titlesBody, {
           "cache-control": "public, max-age=3600",
         });
-        res.end(payload);
         return;
       }
 
       if (req.method === "GET" && url.pathname === "/api/search") {
-        const q = (url.searchParams.get("q") ?? "").trim();
-        const k = Math.min(Number(url.searchParams.get("k") ?? 12) || 12, 50);
+        if (rateLimited(req)) {
+          sendJson(req, res, 429, { error: "rate limit exceeded, slow down" });
+          return;
+        }
+        // Truncate over-long queries before they hit the (CPU-heavy) typo/embedding path.
+        const q = (url.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY_CHARS);
+        const k = Math.min(Math.max(Number(url.searchParams.get("k") ?? 12) || 12, 1), 50);
         const modeParam = url.searchParams.get("mode");
         const mode: SearchMode =
           modeParam === "vector" || modeParam === "keyword" ? modeParam : "hybrid";
         const typo = url.searchParams.get("typo") !== "off"; // default on
         if (!q) {
-          json(res, 200, { query: "", mode, ms: 0, count: index.meta.count, results: [] });
+          sendJson(req, res, 200, { query: "", mode, ms: 0, count: index.meta.count, results: [] });
           return;
         }
         const t0 = performance.now();
         const results = await searcher.search(q, k, { mode, typo });
         const ms = +(performance.now() - t0).toFixed(1);
-        json(res, 200, { query: q, mode, ms, count: index.meta.count, results });
+        sendJson(req, res, 200, { query: q, mode, ms, count: index.meta.count, results });
         return;
       }
 
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end("not found");
+      send(req, res, 404, "text/plain; charset=utf-8", "not found");
     } catch (err) {
-      json(res, 500, { error: (err as Error).message });
+      // Log details server-side; never leak internals (paths, model errors) to the client.
+      console.error("request error:", err);
+      sendJson(req, res, 500, { error: "internal error" });
     }
   });
 

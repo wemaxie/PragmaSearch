@@ -1,0 +1,7 @@
+[
+  { "id": 1, "title": "NVIDIA GeForce RTX 5090 32GB", "description": "Flagship graphics card for 4K rendering and ray tracing.", "category": "Graphics Cards", "price": 1999 },
+  { "id": 2, "title": "Wireless Gaming Mouse 26000 DPI", "description": "Ultra-light wireless mouse for competitive play.", "category": "Peripherals", "price": 89 },
+  { "id": 3, "title": "Ergonomic Office Chair, Mesh Back", "description": "Breathable chair with lumbar support for the workday.", "category": "Furniture", "price": 329 },
+  { "id": 4, "title": "Stainless Steel Espresso Machine", "description": "Semi-automatic espresso maker with a steam wand.", "category": "Kitchen", "price": 449 },
+  { "id": 5, "title": "Noise-Cancelling Over-Ear Headphones", "description": "Travel headphones with active noise cancellation.", "category": "Audio", "price": 299 }
+]

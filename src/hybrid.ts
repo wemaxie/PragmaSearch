@@ -22,7 +22,9 @@ const STOPWORDS = new Set([
 /** Light stemmer: normalize common English plurals so "headphones" matches "headphone". */
 function stem(t: string): string {
   if (t.length > 4 && t.endsWith("ies")) return t.slice(0, -3) + "y"; // batteries -> battery
-  if (t.length > 3 && t.endsWith("s") && !t.endsWith("ss") && !t.endsWith("us")) {
+  // Strip a plural 's', but skip common singular endings so we don't mangle
+  // analysis/bias/status/focus/atlas/wireless into nonsense.
+  if (t.length > 3 && t.endsWith("s") && !/(ss|us|is|os|as)$/.test(t)) {
     return t.slice(0, -1); // cards -> card, machines -> machine
   }
   return t;

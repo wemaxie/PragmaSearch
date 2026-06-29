@@ -60,7 +60,11 @@ function cleanDescription(about: string): string {
 }
 
 function parsePrice(v: unknown): number | undefined {
-  const n = parseFloat(str(v).replace(/[^0-9.]/g, ""));
+  // Take only the FIRST currency number. Stripping all non-digits fuses "$54.99 $60.00"
+  // into 54.996 — a real bug seen in the source data (price ranges / multi-price strings).
+  const m = str(v).match(/\d{1,9}(?:[.,]\d{1,2})?/);
+  if (!m) return undefined;
+  const n = parseFloat(m[0].replace(",", "."));
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 

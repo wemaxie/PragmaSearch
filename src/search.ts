@@ -1,4 +1,5 @@
 import { createEmbedder, queryPrefix, type Embedder } from "./embedder.js";
+import { INDEX_FORMAT_VERSION } from "./index-builder.js";
 import {
   buildKeywordIndex,
   rrfFuse,
@@ -76,14 +77,55 @@ export interface Searcher {
  * and builds the keyword (BM25) layer in memory for hybrid search.
  */
 export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
-  const embedder = await createEmbedder({
-    model: index.meta.model,
-    dtype: index.meta.dtype,
-  });
+  const meta = index.meta;
+  // Fail loudly on a malformed/incompatible index instead of silently returning garbage rankings.
+  if (typeof meta?.model !== "string" || !meta.model || typeof meta.dtype !== "string" || !meta.dtype) {
+    throw new Error(
+      "PragmaSearch: index meta is missing model/dtype — rebuild it with this version of the indexer.",
+    );
+  }
+  if (meta.version !== INDEX_FORMAT_VERSION) {
+    throw new Error(
+      `PragmaSearch: index format v${meta.version} != supported v${INDEX_FORMAT_VERSION}. Rebuild the index.`,
+    );
+  }
+
+  const embedder = await createEmbedder({ model: meta.model, dtype: meta.dtype });
+
+  // Probe once: the query encoder MUST match the document encoder, or cosine is meaningless.
+  // This also warms the model. Catches same-dim/different-model and dtype drift up front.
+  const probe = await embedder.embedOne(queryPrefix(meta.model) + "ok");
+  if (probe.length !== meta.dim) {
+    throw new Error(
+      `PragmaSearch: query encoder dim ${probe.length} != index dim ${meta.dim} ` +
+        `(index built with ${meta.model}/${meta.dtype}). The query and document encoders don't match.`,
+    );
+  }
+
   const keyword = buildKeywordIndex(index.items);
   const byId = new Map<string, IndexItem>(
     index.items.map((it) => [String(it.id), it]),
   );
+
+  // Small LRU cache of query embeddings — autocomplete chips, warm-ups and repeated
+  // queries skip the (dominant) model forward pass.
+  const QCACHE_MAX = 256;
+  const qcache = new Map<string, number[]>();
+  async function embedQuery(text: string): Promise<number[]> {
+    const cached = qcache.get(text);
+    if (cached) {
+      qcache.delete(text);
+      qcache.set(text, cached); // LRU bump
+      return cached;
+    }
+    const vec = await embedder.embedOne(queryPrefix(meta.model) + text);
+    qcache.set(text, vec);
+    if (qcache.size > QCACHE_MAX) {
+      const oldest = qcache.keys().next().value;
+      if (oldest !== undefined) qcache.delete(oldest);
+    }
+    return vec;
+  }
 
   async function search(
     query: string,
@@ -110,7 +152,7 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
       });
     }
 
-    const queryVector = await embedder.embedOne(queryPrefix(index.meta.model) + q);
+    const queryVector = await embedQuery(q);
 
     if (mode === "vector") {
       return searchVectors(index, queryVector, k);

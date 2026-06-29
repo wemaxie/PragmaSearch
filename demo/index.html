@@ -229,8 +229,11 @@
         });
       });
 
-      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      // Only ever emit http(s) URLs into href/src — blocks javascript: and other scheme injection
+      // from arbitrary scraped product data.
+      const safeUrl = (u) => (/^https?:\/\//i.test(String(u ?? "")) ? String(u) : "");
 
       function render(data) {
         latencyEl.innerHTML = data.query ? `<b>${data.ms}</b> ms` : "—";
@@ -260,11 +263,13 @@
           const sigs = (r.signals || [])
             .map((s) => `<span class="sig ${esc(s)}">${esc(s)}</span>`)
             .join("");
-          const titleInner = p.url
-            ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`
+          const purl = safeUrl(p.url);
+          const titleInner = purl
+            ? `<a href="${esc(purl)}" target="_blank" rel="noopener noreferrer">${esc(p.title)}</a>`
             : esc(p.title);
-          const thumb = p.image
-            ? `<img class="thumb" src="${esc(p.image)}" loading="lazy" onerror="this.style.display='none'" />`
+          const pimg = safeUrl(p.image);
+          const thumb = pimg
+            ? `<img class="thumb" src="${esc(pimg)}" loading="lazy" onerror="this.style.display='none'" />`
             : "";
           return `
             <div class="card">
@@ -354,8 +359,9 @@
             ? (t.currency ? `${esc(t.price)} ${esc(t.currency)}` : `$${esc(t.price)}`)
             : "";
           const price = priceTxt ? `<span class="sg-price">${priceTxt}</span>` : "";
-          const thumb = t.image
-            ? `<img class="sg-thumb" src="${esc(t.image)}" loading="lazy" onerror="this.style.display='none'"/>`
+          const timg = safeUrl(t.image);
+          const thumb = timg
+            ? `<img class="sg-thumb" src="${esc(timg)}" loading="lazy" onerror="this.style.display='none'"/>`
             : "";
           return `<div class="sg-item" data-i="${i}">${thumb}<span class="sg-title">${esc(t.title)}</span>${price}</div>`;
         }).join("");

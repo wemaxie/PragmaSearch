@@ -1,7 +1,7 @@
 import { createEmbedder, docPrefix, type EmbedderOptions } from "./embedder.js";
 import type { Product, PragmaIndex, IndexItem } from "./types.js";
 
-const INDEX_FORMAT_VERSION = 1;
+export const INDEX_FORMAT_VERSION = 1;
 
 /** Round to 4 decimals — shrinks the index file ~2x with no meaningful recall loss on normalized vectors. */
 function round4(x: number): number {

@@ -11,10 +11,17 @@ export async function readProducts(path: string): Promise<Product[]> {
       `${path}: expected a JSON array of products or { "products": [...] }`,
     );
   }
+  const seen = new Set<string>();
   for (const [i, p] of products.entries()) {
     if (p == null || typeof p !== "object" || p.id == null || p.title == null) {
       throw new Error(`${path}: product #${i} must have at least { id, title }`);
     }
+    // ids are keyed as strings internally, so "123" and 123 would collide — reject duplicates.
+    const key = String(p.id);
+    if (seen.has(key)) {
+      throw new Error(`${path}: duplicate product id ${JSON.stringify(p.id)} (ids must be unique)`);
+    }
+    seen.add(key);
   }
   return products as Product[];
 }

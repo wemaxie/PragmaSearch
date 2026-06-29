@@ -29,12 +29,31 @@ function parseArgs(argv: string[]): ParsedArgs {
         flags[body] = true;
       }
     } else if (a === "-k") {
-      flags.k = argv[++i];
+      if (i + 1 < argv.length && !argv[i + 1].startsWith("-")) flags.k = argv[++i];
+      else flags.k = true; // missing value — validated later
     } else {
       positionals.push(a);
     }
   }
   return { positionals, flags };
+}
+
+/** A flag that must carry a string value (errors if it was passed as a bare boolean flag). */
+function strFlag(flags: ParsedArgs["flags"], name: string): string | undefined {
+  const v = flags[name];
+  if (v === undefined) return undefined;
+  if (v === true) throw new Error(`--${name} expects a value`);
+  return v as string;
+}
+
+/** Parse `-k`: a positive integer or throw. */
+function intFlag(flags: ParsedArgs["flags"], name: string, dflt: number): number {
+  const v = flags[name];
+  if (v === undefined) return dflt;
+  if (typeof v !== "string" || !/^\d+$/.test(v) || Number(v) < 1) {
+    throw new Error(`-${name} expects a positive integer, got ${JSON.stringify(v)}`);
+  }
+  return Number(v);
 }
 
 function usage(): void {
@@ -59,9 +78,9 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
     usage();
     throw new Error("index: missing <products.json>");
   }
-  const out = (args.flags.out as string) ?? DEFAULT_INDEX_FILE;
-  const model = args.flags.model as string | undefined;
-  const dtype = args.flags.dtype as string | undefined;
+  const out = strFlag(args.flags, "out") ?? DEFAULT_INDEX_FILE;
+  const model = strFlag(args.flags, "model");
+  const dtype = strFlag(args.flags, "dtype");
 
   const products = await readProducts(input);
   console.log(`Indexing ${products.length} products from ${input} ...`);
@@ -96,11 +115,15 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
     usage();
     throw new Error("search: missing <query>");
   }
-  const indexFile = (args.flags.index as string) ?? DEFAULT_INDEX_FILE;
-  const k = args.flags.k ? Number(args.flags.k) : 10;
-  const mode = (args.flags.mode as SearchMode | undefined) ?? "hybrid";
+  const indexFile = strFlag(args.flags, "index") ?? DEFAULT_INDEX_FILE;
+  const k = intFlag(args.flags, "k", 10);
+  const modeFlag = strFlag(args.flags, "mode");
+  if (modeFlag && !["hybrid", "vector", "keyword"].includes(modeFlag)) {
+    throw new Error(`--mode must be hybrid|vector|keyword, got ${JSON.stringify(modeFlag)}`);
+  }
+  const mode = (modeFlag as SearchMode | undefined) ?? "hybrid";
   // --typo off  (or --no-typo) disables typo tolerance; default on.
-  const typo = args.flags.typo === "off" || args.flags["no-typo"] === true ? false : true;
+  const typo = strFlag(args.flags, "typo") === "off" || args.flags["no-typo"] === true ? false : true;
 
   const index = await loadIndex(indexFile);
   const searcher = await createSearcher(index);

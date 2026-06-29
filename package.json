@@ -33,9 +33,11 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/engine.test.ts",
     "index": "tsx src/cli.ts index",
     "search": "tsx src/cli.ts search",
     "demo": "tsx demo/server.ts",
+    "example": "tsx examples/quickstart.ts",
     "demo:index": "tsx src/cli.ts index data/products.json",
     "demo:10k": "tsx demo/server.ts pragmasearch-index-10k.json",
     "fetch:10k": "tsx scripts/fetch-amazon-10k.ts",

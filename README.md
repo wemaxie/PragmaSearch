@@ -15,15 +15,18 @@ No registration. No account. No external service ever sees your data or your use
 
 ## Quick start
 
-```bash
-npm install pragmasearch
+> Not on npm yet — clone the repo and run `npm install`. (`npm install pragmasearch`
+> will work once published.)
 
-# build the index from your catalog (the one-time "training" on your own data)
+```bash
+# build the index from your catalog (a one-time pass over your own data)
 npx pragmasearch index products.json
 
-# search it
+# search it — try a query whose words aren't in any title
 npx pragmasearch search "something for gaming"
 ```
+
+Runnable example: `npm run example` (indexes a tiny sample and searches it).
 
 Programmatic API:
 
@@ -37,29 +40,36 @@ const searcher = await createSearcher(await loadIndex("pragmasearch-index.json")
 const hits = await searcher.search("something for gaming", 5);
 ```
 
-## Live demo (server-side)
+## Demo server
 
-A ready-to-deploy server-side demo runs over a real 5,041-product catalog
-(it-shop.rs, Serbian, multilingual model): hybrid search, typo tolerance, ~40 ms
-per query, $0/search. Deploy it on any persistent host (Railway / Render / Fly /
-VPS) in a couple of clicks — see **[DEPLOY.md](DEPLOY.md)**.
-
-Run it locally:
+A small server serves a search UI + `/api/search`, with instant in-browser
+autocomplete and a Hybrid / Vector / Keyword toggle:
 
 ```bash
 npm install
-npm run demo:itshop     # http://localhost:5173
+npm run demo            # http://localhost:5173 (English sample catalog)
 ```
 
-Search modes (toggle in the UI): **hybrid** (meaning + keywords + exact-match boost),
-**vector** (pure semantic), **keyword** (BM25). Typo tolerance is configurable
-(e.g. `opple` → `apple`).
+Point it at any catalog and model (e.g. multilingual) by building an index and
+passing it: `npx tsx demo/server.ts your-index.json`. In server mode the query is
+embedded on **your** host (no third party); ~tens of ms per query, $0/search.
+Deploy it on any persistent host (Railway / Render / Fly / VPS) — see
+**[DEPLOY.md](DEPLOY.md)**. (A fully client-side, in-browser build — model and all —
+is on the [roadmap](ROADMAP.md).)
+
+## Models & languages
+
+Default model is `Xenova/all-MiniLM-L6-v2` (English, ~23 MB). For other languages
+use `--model Xenova/multilingual-e5-small` at index time — query/passage prefixes
+are applied automatically. The model is stored in the index, so query and document
+encoders always match.
 
 ## Status
 
-🚧 Early development. Hybrid keyword + vector search, multilingual support, typo
-tolerance, and a CLI are working. A fully client-side browser build and a drop-in
-widget are on the roadmap — see [`docs_dev/task_plan.md`](docs_dev/task_plan.md).
+🚧 Early `0.x` — the API and on-disk index format may change. Working today: hybrid
+keyword + vector search, configurable typo tolerance, multilingual support, a CLI,
+a programmatic API, and the demo server. A fully client-side browser build, faceting,
+and a drop-in widget are next — see the [roadmap](ROADMAP.md).
 
 ## License
 
