@@ -137,6 +137,20 @@ Questions, ideas, or a use case we're missing? Open an [issue](https://github.co
 or a [discussion](https://github.com/wemaxie/PragmaSearch/discussions). Contributions welcome —
 see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## ❤️ Support
+
+PragmaSearch is free and MIT-licensed. If it saves you a search bill, you can support
+ongoing development:
+
+<a href="https://ko-fi.com/wemaxie"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
+
+Or with crypto:
+
+- **ETH / ERC-20** — `0x6d9344F56E2dfF70751c37Fe2dF6aD12EDd48c11`
+- **Solana** — `B6Sm1vzfs44Bzpy8VvncrnRfy7sByHUqrgHsDdKyMP2a`
+
+Every bit helps keep this maintained and free. 🙏
+
 ## 📄 License
 
 [MIT](LICENSE) — free for commercial and personal use.
