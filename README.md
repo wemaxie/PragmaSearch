@@ -1,32 +1,39 @@
 <p align="center">
-  <img src="assets/header.png" alt="PragmaSearch — local-first semantic search" width="560">
-</p>
-
-<p align="center">
-  <b>Free, self-hosted semantic search — a local-first Algolia alternative.</b><br>
-  Hybrid <b>vector + keyword</b> search that understands <i>meaning</i>, with typo tolerance,
-  multilingual support, zero API keys, and <b>$0 per search</b>.
+  <img src="assets/header.png" alt="PragmaSearch — free local-first semantic search engine, an open-source self-hosted Algolia alternative" width="560">
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/wemaxie/PragmaSearch/actions/workflows/ci.yml"><img src="https://github.com/wemaxie/PragmaSearch/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20">
-  <img src="https://img.shields.io/badge/TypeScript-strict-3178c6" alt="TypeScript">
-  <img src="https://img.shields.io/badge/dependencies-1-success" alt="1 runtime dependency">
+  <a href="https://github.com/wemaxie/PragmaSearch/actions/workflows/ci.yml"><img src="https://github.com/wemaxie/PragmaSearch/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+">
+  <img src="https://img.shields.io/badge/TypeScript-strict-3178c6" alt="Written in TypeScript">
+  <img src="https://img.shields.io/badge/dependencies-1-success" alt="One runtime dependency">
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
 </p>
 
----
+<p align="center">
+  <a href="https://pragmasearch-demo.up.railway.app/"><b>🔎 Live demo</b></a> &nbsp;·&nbsp;
+  <a href="#-quick-start">Quick start</a> &nbsp;·&nbsp;
+  <a href="docs/configuration.md">Configuration</a> &nbsp;·&nbsp;
+  <a href="docs/performance.md">Performance</a> &nbsp;·&nbsp;
+  <a href="ROADMAP.md">Roadmap</a>
+</p>
+
+# PragmaSearch — local-first semantic search engine
+
+**PragmaSearch is a free, self-hosted semantic search engine — an open-source, local-first
+[Algolia](https://www.algolia.com/) alternative.** It combines **vector (meaning-based) search**
+and **BM25 keyword search** into one hybrid ranking, with typo tolerance, faceted filtering,
+and multilingual support — no cloud, no API keys, **$0 per search**.
 
 Search **`"something for gaming"`** and get back an **RTX 5090** — even though the word
-"gaming" appears nowhere in its title. PragmaSearch runs a tiny embedding model **on your
-own machine or server** (no cloud, no API keys), so you replace your hosted-search bill with **$0**.
+"gaming" appears nowhere in its title. The model runs on your own machine or server, so you
+replace your hosted-search bill with $0.
 
-> Paying $500/mo for hosted search on a 5,000-product shop? Your laptop in 2026 is more than
-> powerful enough to do it locally, for free.
+> Paying $500/mo for hosted search on a 5,000-product shop? A small VPS is more than powerful
+> enough to do it locally, for free. **[Try the live demo →](https://pragmasearch-demo.up.railway.app/)**
 
-<!-- TODO: drop a demo GIF here — typing "for games" → graphics cards. (The single most persuasive thing in this README.) -->
+<!-- TODO: drop a demo GIF/screenshot here — typing "for games" → graphics cards + facet sidebar. -->
 
 ## ✨ Features
 
@@ -93,8 +100,9 @@ No registration. No account. No third-party service ever sees your catalog or yo
 
 ## 🖥️ Demo server
 
-A small server serves a search UI + `/api/search`, with instant in-browser autocomplete and a
-Hybrid / Vector / Keyword toggle:
+A small server serves a search UI + `/api/search`, with instant in-browser autocomplete,
+a **faceted refinement sidebar** (category / brand / price), pagination, and a
+Hybrid / Vector / Keyword toggle. **[Live demo →](https://pragmasearch-demo.up.railway.app/)**
 
 ```bash
 npm install
@@ -109,17 +117,28 @@ persistent host (Railway / Render / Fly / VPS), see **[DEPLOY.md](DEPLOY.md)**.
 
 Default model is `Xenova/all-MiniLM-L6-v2` (English, ~23 MB). For other languages, index with
 `--model Xenova/multilingual-e5-small` — query/passage prefixes are applied automatically. The
-model is recorded in the index, so query and document encoders always match.
+model is recorded in the index, so query and document encoders always match. See the
+[model table](docs/configuration.md#models).
+
+## 📚 Documentation
+
+- **[Configuration reference](docs/configuration.md)** — every option: indexing, search, filters, facets, server env vars, models.
+- **[Performance & VPS sizing](docs/performance.md)** — what CPU you need for ~50 ms search, RAM by catalog size, scaling.
+- **[Deployment](DEPLOY.md)** — Railway / Render / Fly / VPS, with Docker.
+- **[Roadmap](ROADMAP.md)** · **[Changelog](CHANGELOG.md)**
 
 ## 🗺️ Roadmap
 
-Facets & filtering, pagination, highlighting, a drop-in search widget, and incremental indexing
-are next — see **[ROADMAP.md](ROADMAP.md)**. Ideas and use cases welcome via issues.
+Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, pagination**,
+multilingual, CLI + API + demo server. Next: result highlighting, a drop-in search widget
+(React/Vue), and incremental indexing — see **[ROADMAP.md](ROADMAP.md)**.
 
-## 🤝 Contributing
+## 💬 Community
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). PragmaSearch stays small and dependency-light by design.
+Questions, ideas, or a use case we're missing? Open an [issue](https://github.com/wemaxie/PragmaSearch/issues)
+or a [discussion](https://github.com/wemaxie/PragmaSearch/discussions). Contributions welcome —
+see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — free for commercial and personal use.
