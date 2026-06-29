@@ -9,6 +9,7 @@ import {
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
 import { planUpsert, applyUpsert, removeItems, patchPayload, round4 } from "./incremental.js";
+import { highlightProduct, type HighlightOptions } from "./highlight.js";
 import type {
   PragmaIndex,
   SearchResult,
@@ -72,6 +73,8 @@ export interface SearchOptions {
   maxFacetValues?: number;
   /** Pagination offset into the ranked result set (default 0). */
   offset?: number;
+  /** Highlight matching words in result fields: `true` (title+description) or a config object. */
+  highlight?: boolean | HighlightOptions;
 }
 
 /** Result of an incremental update. */
@@ -231,10 +234,20 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     ranked.sort((a, b) => b.score - a.score);
 
     // 3. Paginate + materialize the page.
+    const hl = opts.highlight;
+    const hlOpts: HighlightOptions | undefined =
+      hl && typeof hl === "object" ? hl : undefined;
     const total = ranked.length;
     const hits: SearchResult[] = ranked.slice(offset, offset + limit).map((r) => {
       const item = byId.get(r.id)!;
-      return { id: item.payload.id, score: r.score, product: item.payload, signals: r.signals };
+      const hit: SearchResult = {
+        id: item.payload.id,
+        score: r.score,
+        product: item.payload,
+        signals: r.signals,
+      };
+      if (hl && q) hit.highlights = highlightProduct(item.payload, q, hlOpts);
+      return hit;
     });
 
     // 4. Facet counts over the filtered set (the refinement sidebar).

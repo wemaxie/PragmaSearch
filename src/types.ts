@@ -65,6 +65,8 @@ export interface SearchResult {
   product: Product;
   /** Which layers matched, for transparency in UIs/debugging. */
   signals?: SearchSignal[];
+  /** Per-field highlighted HTML (when `highlight` is requested), e.g. `{ title: "...<mark>RTX</mark>..." }`. */
+  highlights?: Record<string, string>;
 }
 
 /** A single condition on a product field. AND across fields; OR within an array. */

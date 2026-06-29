@@ -167,6 +167,7 @@
       .title { font-size: 15.5px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; }
       .title a { color: inherit; text-decoration: none; }
       .title a:hover { color: var(--accent-2); }
+      mark { background: rgba(124, 92, 255, 0.32); color: var(--text); border-radius: 3px; padding: 0 1px; }
       .meta { display: flex; gap: 8px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
       .cat {
         font-size: 11.5px; color: var(--accent-2);
@@ -283,10 +284,12 @@
           const sigs = (r.signals || [])
             .map((s) => `<span class="sig ${esc(s)}">${esc(s)}</span>`)
             .join("");
+          // highlights.title is server-escaped HTML with <mark> — safe to inline.
+          const titleHtml = (r.highlights && r.highlights.title) || esc(p.title);
           const purl = safeUrl(p.url);
           const titleInner = purl
-            ? `<a href="${esc(purl)}" target="_blank" rel="noopener noreferrer">${esc(p.title)}</a>`
-            : esc(p.title);
+            ? `<a href="${esc(purl)}" target="_blank" rel="noopener noreferrer">${titleHtml}</a>`
+            : titleHtml;
           const pimg = safeUrl(p.image);
           const thumb = pimg
             ? `<img class="thumb" src="${esc(pimg)}" loading="lazy" onerror="this.style.display='none'" />`
@@ -410,7 +413,7 @@
         ctrl = new AbortController();
         try {
           let url = `/api/search?q=${encodeURIComponent(q)}&k=${PER}&mode=${mode}&typo=${typo ? "on" : "off"}`
-            + `&offset=${offset}&facets=category,brand`;
+            + `&offset=${offset}&facets=category,brand&highlight=on`;
           if (filter) url += `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
           const res = await fetch(url, { signal: ctrl.signal });
           const data = await res.json();

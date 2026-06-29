@@ -59,6 +59,12 @@ export {
 } from "./incremental.js";
 
 export {
+  highlightProduct,
+  highlightField,
+  type HighlightOptions,
+} from "./highlight.js";
+
+export {
   buildKeywordIndex,
   rrfFuse,
   exactTitleMatches,

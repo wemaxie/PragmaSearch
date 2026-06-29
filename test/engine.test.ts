@@ -19,6 +19,7 @@ import {
 import { searchVectors, createSearcher } from "../src/search.js";
 import { matchesFilter, computeFacets } from "../src/facets.js";
 import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incremental.js";
+import { highlightProduct, highlightField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
 
@@ -229,4 +230,21 @@ test("applyUpsert merges embedded + reused and updates count", () => {
   assert.equal(idx.items.length, 2);
   assert.equal(idx.items[0].payload.price, 40); // reused item's payload swapped
   assert.equal(idx.meta.count, 2);
+});
+
+// ---------- highlighting ----------
+test("highlightField wraps stem-matching words and escapes HTML", () => {
+  const out = highlightField("Wireless Headphones <b>", new Set(["wireless", "headphone"]));
+  assert.match(out, /<mark>Wireless<\/mark>/);
+  assert.match(out, /<mark>Headphones<\/mark>/); // plural matches "headphone"
+  assert.match(out, /&lt;b&gt;/); // raw HTML in the source is escaped
+  assert.ok(!out.includes("<b>"));
+});
+
+test("highlightProduct highlights requested fields; empty query → none", () => {
+  const p: Product = { id: 1, title: "RTX 5090 Graphics Card", description: "for gaming" };
+  const h = highlightProduct(p, "rtx graphics");
+  assert.match(h.title, /<mark>RTX<\/mark>/);
+  assert.match(h.title, /<mark>Graphics<\/mark>/);
+  assert.deepEqual(highlightProduct(p, ""), {});
 });

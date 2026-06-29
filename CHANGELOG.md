@@ -7,11 +7,15 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
 - **Incremental indexing** for live catalogs: `patchPayload` (price/stock without
   re-embedding, no model), `Searcher.upsert` (embeds only new/text-changed products),
   `Searcher.remove`. Token-gated HTTP write endpoints `POST /api/patch|upsert|remove`
   (`PRAGMA_ADMIN_TOKEN`).
+- **Result highlighting** — `highlight` search option / `&highlight=on` returns per-field
+  HTML with query matches wrapped in `<mark>` (stem-aware, HTML-safe). `highlightProduct`/`highlightField` exported.
 
 ## [0.1.0]
 

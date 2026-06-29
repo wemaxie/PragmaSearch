@@ -244,8 +244,9 @@ async function main(): Promise<void> {
           sendJson(req, res, 200, { query: "", mode, ms: 0, count: index.meta.count, total: 0, results: [] });
           return;
         }
+        const highlight = url.searchParams.get("highlight") === "on";
         const t0 = performance.now();
-        const resp = await searcher.search(q, k, { mode, typo, offset, facets, filter });
+        const resp = await searcher.search(q, k, { mode, typo, offset, facets, filter, highlight });
         const ms = +(performance.now() - t0).toFixed(1);
         sendJson(req, res, 200, {
           query: q,
