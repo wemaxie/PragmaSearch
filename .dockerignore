@@ -1,0 +1,14 @@
+node_modules
+.git
+dist
+.models
+public
+
+# big/raw artifacts not needed at runtime (server uses the committed index)
+data/eponuda.xml
+data/products-10k.json
+data/products-itshop.json
+pragmasearch-index-10k.json
+demo/.server*.log
+data/.index*.log
+*.log

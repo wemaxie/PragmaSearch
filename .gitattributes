@@ -1,0 +1,6 @@
+# Normalize line endings to LF in the repo so Docker builds on Linux don't choke
+# on CRLF (e.g. a stray \r in a Dockerfile RUN line).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

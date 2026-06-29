@@ -1,0 +1,12 @@
+# One-click-ish deploy on Render (https://render.com) via "New + > Blueprint".
+# Render reads this file, builds the Dockerfile, and runs it.
+# NOTE: the multilingual model + index need ~1GB RAM — use the Starter plan, not Free (512MB may OOM).
+services:
+  - type: web
+    name: pragmasearch-itshop
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/meta
+    envVars:
+      - key: PRAGMA_CHIPS
+        value: "nešto za gejming|bežične slušalice|punjač za laptop|opple airpods|brzi SSD disk|miš za igrice"

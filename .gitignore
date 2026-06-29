@@ -1,0 +1,35 @@
+# local Claude Code config / skills / worktrees — not part of the project
+.claude/
+
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# transformers.js model cache (downloaded weights — never commit)
+.cache/
+.transformers-cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# the generated index is normally committed by the *consumer* of pragmasearch,
+# but for this repo's own demo we regenerate it, so keep it out of git:
+pragmasearch-index.json
+
+# large 10k test artifacts — reproducible via `npm run fetch:10k && npm run index:10k`
+pragmasearch-index-10k.json
+data/products-10k.json
+demo/.server*.log
+
+# it-shop.rs raw feed + products stay private (the deployed server only needs the index)
+data/eponuda.xml
+data/products-itshop.json
+data/.index-itshop.log
+# NOTE: pragmasearch-index-itshop.json IS committed (the server-side demo deploy needs it).
+# Before making this repo PUBLIC OSS, remove that index — it contains it-shop's catalog —
+# and ship only the small English sample instead.
+.models/

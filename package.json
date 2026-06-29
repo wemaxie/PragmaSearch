@@ -1,0 +1,62 @@
+{
+  "name": "pragmasearch",
+  "version": "0.0.1",
+  "description": "Open-source local-first semantic search engine. Drop in a products JSON, get hybrid (keyword + meaning) search with zero cloud, zero API keys, $0.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "search",
+    "semantic-search",
+    "vector-search",
+    "embeddings",
+    "transformers.js",
+    "local-first",
+    "algolia-alternative",
+    "hybrid-search",
+    "e-commerce"
+  ],
+  "bin": {
+    "pragmasearch": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "index": "tsx src/cli.ts index",
+    "search": "tsx src/cli.ts search",
+    "demo": "tsx demo/server.ts",
+    "demo:index": "tsx src/cli.ts index data/products.json",
+    "demo:10k": "tsx demo/server.ts pragmasearch-index-10k.json",
+    "fetch:10k": "tsx scripts/fetch-amazon-10k.ts",
+    "index:10k": "tsx src/cli.ts index data/products-10k.json --out pragmasearch-index-10k.json",
+    "convert:itshop": "tsx scripts/convert-eponuda.ts",
+    "index:itshop": "tsx src/cli.ts index data/products-itshop.json --out pragmasearch-index-itshop.json --model Xenova/multilingual-e5-small --dtype q8",
+    "demo:itshop": "tsx demo/server.ts pragmasearch-index-itshop.json",
+    "eval": "tsx eval/run.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "fast-xml-parser": "^5.9.3",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
