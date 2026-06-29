@@ -74,6 +74,28 @@
       }
       .latency b { color: var(--accent-2); font-weight: 600; }
 
+      .search-wrap { position: relative; }
+      .suggest {
+        position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+        overflow: hidden; box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+      }
+      .suggest[hidden] { display: none; }
+      .sg-item {
+        display: flex; align-items: center; gap: 12px; padding: 9px 14px; cursor: pointer;
+        border-bottom: 1px solid var(--bg-2);
+      }
+      .sg-item:last-child { border-bottom: 0; }
+      .sg-item.active, .sg-item:hover { background: var(--panel-2); }
+      .sg-thumb {
+        width: 34px; height: 34px; flex: none; border-radius: 7px; object-fit: contain;
+        background: #fff; border: 1px solid var(--border);
+      }
+      .sg-title { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sg-price { flex: none; font-size: 12px; font-family: var(--mono); color: var(--muted); }
+      .sg-hint { padding: 7px 14px; font-size: 11px; color: var(--faint); border-top: 1px solid var(--bg-2); }
+      .sg-hint b { color: var(--accent-2); font-weight: 600; }
+
       .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 2px 0; }
       .chips span { font-size: 12.5px; color: var(--faint); margin-right: 2px; align-self: center; }
       .chip {
@@ -157,12 +179,15 @@
         </p>
       </header>
 
-      <div class="searchbar">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
-        </svg>
-        <input id="q" type="text" placeholder="Search by meaning… e.g. something for gaming" autocomplete="off" autofocus />
-        <div class="latency" id="latency">—</div>
+      <div class="search-wrap">
+        <div class="searchbar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input id="q" type="text" placeholder="Search by meaning… e.g. something for gaming" autocomplete="off" autofocus />
+          <div class="latency" id="latency">—</div>
+        </div>
+        <div class="suggest" id="suggest" hidden></div>
       </div>
 
       <div class="chips" id="chips"><span>Try:</span></div>
@@ -269,6 +294,7 @@
       let timer, ctrl;
       async function run() {
         const q = qEl.value.trim();
+        hideSuggest();
         if (ctrl) ctrl.abort();
         ctrl = new AbortController();
         try {
@@ -280,8 +306,9 @@
         } catch (e) { /* aborted */ }
       }
       qEl.addEventListener("input", () => {
+        renderSuggest(qEl.value);          // instant, client-side
         clearTimeout(timer);
-        timer = setTimeout(run, 180);
+        timer = setTimeout(run, 350);      // full semantic search after a pause
       });
       document.querySelectorAll(".mode").forEach(b =>
         b.addEventListener("click", () => {
@@ -294,6 +321,80 @@
         typo = e.target.checked;
         run();
       });
+
+      // ---------- autocomplete: instant in-browser suggestions (no model call) ----------
+      let TITLES = [];
+      let sgItems = [];
+      let sgActive = -1;
+      const suggestEl = document.getElementById("suggest");
+
+      fetch("/api/titles")
+        .then((r) => r.json())
+        .then((d) => { TITLES = d.items || []; });
+
+      function buildSuggestions(raw) {
+        const q = raw.trim().toLowerCase();
+        if (!q || !TITLES.length) return [];
+        const starts = [], includes = [];
+        for (const t of TITLES) {
+          const nt = (t.title || "").toLowerCase();
+          if (nt.startsWith(q)) { if (starts.length < 7) starts.push(t); }
+          else if (nt.includes(q) && includes.length < 7) includes.push(t);
+          if (starts.length >= 7) break;
+        }
+        return starts.concat(includes).slice(0, 7);
+      }
+
+      function renderSuggest(raw) {
+        sgItems = buildSuggestions(raw);
+        sgActive = -1;
+        if (!sgItems.length) { suggestEl.hidden = true; suggestEl.innerHTML = ""; return; }
+        const rows = sgItems.map((t, i) => {
+          const priceTxt = t.price != null
+            ? (t.currency ? `${esc(t.price)} ${esc(t.currency)}` : `$${esc(t.price)}`)
+            : "";
+          const price = priceTxt ? `<span class="sg-price">${priceTxt}</span>` : "";
+          const thumb = t.image
+            ? `<img class="sg-thumb" src="${esc(t.image)}" loading="lazy" onerror="this.style.display='none'"/>`
+            : "";
+          return `<div class="sg-item" data-i="${i}">${thumb}<span class="sg-title">${esc(t.title)}</span>${price}</div>`;
+        }).join("");
+        suggestEl.innerHTML = rows + `<div class="sg-hint">↑ ↓ to navigate · Enter for full <b>semantic</b> search</div>`;
+        suggestEl.hidden = false;
+        suggestEl.querySelectorAll(".sg-item").forEach((el) => {
+          el.addEventListener("mousedown", (e) => { e.preventDefault(); chooseSuggest(Number(el.dataset.i)); });
+        });
+      }
+
+      function highlightSuggest() {
+        suggestEl.querySelectorAll(".sg-item").forEach((el, i) =>
+          el.classList.toggle("active", i === sgActive));
+      }
+      function hideSuggest() { if (suggestEl) { suggestEl.hidden = true; } sgActive = -1; }
+      function chooseSuggest(i) {
+        const t = sgItems[i];
+        if (!t) return;
+        qEl.value = t.title;
+        hideSuggest();
+        run();
+      }
+
+      qEl.addEventListener("keydown", (e) => {
+        if (suggestEl.hidden || !sgItems.length) {
+          if (e.key === "Enter") { clearTimeout(timer); run(); }
+          return;
+        }
+        if (e.key === "ArrowDown") { e.preventDefault(); sgActive = Math.min(sgActive + 1, sgItems.length - 1); highlightSuggest(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); sgActive = Math.max(sgActive - 1, -1); highlightSuggest(); }
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          clearTimeout(timer);
+          if (sgActive >= 0) chooseSuggest(sgActive);
+          else run();
+        } else if (e.key === "Escape") { hideSuggest(); }
+      });
+      qEl.addEventListener("blur", () => setTimeout(hideSuggest, 120));
+      qEl.addEventListener("focus", () => { if (qEl.value.trim()) renderSuggest(qEl.value); });
     </script>
   </body>
 </html>

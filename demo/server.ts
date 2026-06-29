@@ -75,6 +75,20 @@ async function main(): Promise<void> {
   console.log("Loading model + index ...");
   const index = await getIndex();
   const searcher: Searcher = await createSearcher(index);
+
+  // Lightweight title list for instant client-side autocomplete (no model call).
+  // Kept minimal on purpose — it's fetched once by the browser and cached.
+  const titles = index.items.map((it) => {
+    const p = it.payload;
+    return {
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      price: p.price,
+      currency: p.currency,
+      image: p.image,
+    };
+  });
   // Warm up the model so the first real query is fast.
   await searcher.search("warm up", 1);
   console.log(
@@ -95,6 +109,17 @@ async function main(): Promise<void> {
 
       if (req.method === "GET" && url.pathname === "/api/meta") {
         json(res, 200, { meta: index.meta, chips: CHIPS });
+        return;
+      }
+
+      // Lightweight titles for instant in-browser autocomplete (cached by the browser).
+      if (req.method === "GET" && url.pathname === "/api/titles") {
+        const payload = JSON.stringify({ items: titles });
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public, max-age=3600",
+        });
+        res.end(payload);
         return;
       }
 

@@ -12,12 +12,13 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 
+# Bake the model into its OWN cached layer (only re-runs if prewarm.ts/deps change,
+# so normal code edits don't re-download the ~118MB model on every deploy).
+COPY scripts/prewarm.ts ./scripts/prewarm.ts
+RUN npx tsx scripts/prewarm.ts Xenova/multilingual-e5-small q8 || echo "prewarm skipped"
+
 # App source + the committed catalog index.
 COPY . .
-
-# Pre-download the multilingual model into the image so the first request is fast
-# (no cold-start download). Falls back to a runtime download if the build has no network.
-RUN npx tsx scripts/prewarm.ts Xenova/multilingual-e5-small q8 || echo "prewarm skipped"
 
 # Serbian example queries shown as chips in the UI.
 ENV PRAGMA_CHIPS="nešto za gejming|bežične slušalice|punjač za laptop|opple airpods|brzi SSD disk|miš za igrice"
