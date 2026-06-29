@@ -1,6 +1,9 @@
 # local Claude Code config / skills / worktrees — not part of the project
 .claude/
 
+# internal dev notes — kept locally, not part of the public repo
+docs_dev/
+
 # dependencies
 node_modules/
 

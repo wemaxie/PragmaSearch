@@ -9,6 +9,7 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-3178c6" alt="Written in TypeScript">
   <img src="https://img.shields.io/badge/dependencies-1-success" alt="One runtime dependency">
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
+  <a href="https://ko-fi.com/wemaxie"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
 <p align="center">
