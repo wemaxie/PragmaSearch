@@ -13,14 +13,12 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 
 ## Toward a real product (prioritized)
 
-**v1 (table stakes a catalog adopter hits on day one)**
+**v1 — "Search-UX": the table stakes a catalog adopter hits on day one**
 - [ ] Filtering & faceting (price / category / brand) with facet counts
 - [ ] Pagination / offset
 - [ ] Result highlighting & snippets
+- [ ] Client SDK + framework adapters (React / Next / Vue) and a drop-in search widget
 - [ ] Incremental index updates (add / update / delete without a full re-embed)
-- [ ] Fully client-side browser build (model in-browser via WASM/WebGPU, IndexedDB cache)
-- [ ] Client SDK + framework adapters (React / Next / Vue / Astro) and a drop-in search widget
-- [ ] A quickstart that runs end-to-end on a clean machine
 
 **Should-have (relevance tuning + production readiness)**
 - [ ] Configurable searchable attributes & field weights
@@ -28,10 +26,14 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [ ] Persist the keyword index instead of rebuilding on cold start
 - [ ] Server-mode API auth + CORS config (rate limiting already present)
 - [ ] Language-aware tokenization (stemmer/stopwords per language)
-- [ ] Compact / quantized index format (gzip + int8 vectors) — prerequisite for the browser build
+- [ ] Compact / quantized index format (gzip + int8 vectors) for lower memory & faster loads
 
 **Nice-to-have**
 - [ ] Search analytics (top queries, zero-result queries, latency) and a docs site
 - [ ] Reproducible public relevance benchmark
+
+**Not planned**
+- A fully client-side, in-browser build (model shipped to the browser). The first-load
+  weight makes it a poor fit for the self-hosted server model PragmaSearch targets.
 
 Have a use case or a must-have we're missing? Open an issue.
