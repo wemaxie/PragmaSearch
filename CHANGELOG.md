@@ -5,17 +5,18 @@ All notable changes to this project are documented here. Format loosely follows
 public API and the on-disk **index format (`INDEX_FORMAT_VERSION = 1`)** may
 change between minor versions — pin the version you depend on.
 
-## [Unreleased]
+## [0.1.0]
 
 ### Added
 - Hybrid search: own zero-dependency BM25 keyword layer fused with brute-force
   cosine vector search via Reciprocal Rank Fusion, plus an exact-title boost.
+- Filtering, faceting (value→count) and pagination in `search()` / the API.
 - Configurable typo tolerance (length-scaled edit distance, e.g. `opple` → `apple`).
 - Multilingual support via `--model Xenova/multilingual-e5-small` (query/passage
   prefixes applied automatically per model).
-- CLI (`index` / `search`), programmatic API, and a local demo server with an
-  instant in-browser autocomplete.
-- Unit test suite (`npm test`) and CI.
+- CLI (`index` / `search`), programmatic API, and a demo server with instant
+  in-browser autocomplete and a faceted refinement sidebar.
+- Unit test suite (`npm test`), CI, and docs (configuration + performance/VPS sizing).
 
 ### Security
 - Demo server: input length clamp, per-IP rate limiting, restrictive CSP, no

@@ -64,17 +64,15 @@ replace your hosted-search bill with $0.
 
 ## 🚀 Quick start
 
-> Not on npm yet — clone the repo and run `npm install`. (`npm install pragmasearch` will work once published.)
-
 ```bash
+npm install pragmasearch
+
 # build the index from your catalog (a one-time pass over your own data)
 npx pragmasearch index products.json
 
 # search it — try a query whose words aren't in any title
 npx pragmasearch search "something for gaming"
 ```
-
-Runnable example: `npm run example` (indexes a tiny sample catalog and searches it).
 
 Programmatic API:
 
