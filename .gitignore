@@ -4,6 +4,9 @@
 # internal dev notes — kept locally, not part of the public repo
 docs_dev/
 
+# npm auth / local config — never commit
+.npmrc
+
 # dependencies
 node_modules/
 
