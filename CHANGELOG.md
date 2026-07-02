@@ -8,6 +8,11 @@ change between minor versions — pin the version you depend on.
 ## [Unreleased]
 
 ### Added
+- **Vue adapter** (`pragmasearch/vue`) — Vue 3 components (`<PragmaSearch>`,
+  `<SearchBox>`, `<RefinementList>`, `<Hits>` with a `#hit` slot, `<Pagination>`,
+  `<ClearRefinements>`, `<PoweredBy>`) and a `usePragmaSearch` composable. Built
+  with render functions (no SFC compiler); Vue is an optional peer dep (3.3+);
+  reuses the `.ps-*` widget styles and the shared `react-core` search logic.
 - **Language-aware tokenizer** — the keyword layer now splits on Unicode letters of
   any script (Cyrillic, CJK, accented Latin no longer get mangled), and the
   tokenizer is pluggable: `createSearcher(index, { tokenizer })` accepts a preset

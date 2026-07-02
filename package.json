@@ -31,6 +31,10 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js"
+    },
     "./widget/*": "./widget/*"
   },
   "files": [
@@ -40,7 +44,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/engine.test.ts test/analytics.test.ts test/react-core.test.ts test/react.test.tsx",
+    "test": "node --import tsx --test test/engine.test.ts test/analytics.test.ts test/react-core.test.ts test/react.test.tsx test/vue.test.ts",
     "index": "tsx src/cli.ts index",
     "search": "tsx src/cli.ts search",
     "demo": "tsx demo/server.ts",
@@ -54,13 +58,17 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "vue": ">=3.3"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },
@@ -72,7 +80,8 @@
     "react-dom": "^19.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vue": "^3.5.0"
   },
   "engines": {
     "node": ">=20"

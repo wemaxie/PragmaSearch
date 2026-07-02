@@ -6,6 +6,8 @@ export default defineConfig({
     cli: "src/cli.ts",
     // React adapter — its own bundle so the core package stays React-free.
     react: "src/react.tsx",
+    // Vue adapter — its own bundle (Vue externalized).
+    vue: "src/vue.ts",
   },
   format: ["esm"],
   target: "node20",
@@ -20,5 +22,6 @@ export default defineConfig({
     "react",
     "react-dom",
     "react/jsx-runtime",
+    "vue",
   ],
 });
