@@ -7,6 +7,13 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **Custom ranking (tie-break chain)** — `rankingRules.customRanking`, e.g.
+  `["desc(sales)", "desc(rating)"]`: among results of similar relevance (within
+  `customRankingEpsilon`, default 5% of the top score) order by business fields.
+  "Best-sellers first, all else equal." Applied between boost/bury and pin.
+  Exposes `CustomRankingCriterion`.
+
 ## [0.5.0] - 2026-07-02
 
 ### Added

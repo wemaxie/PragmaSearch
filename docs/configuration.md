@@ -184,6 +184,7 @@ const searcher = await createSearcher(index, {
   rankingRules: {
     boost: [{ filter: { brand: "Acme" }, by: 0.5 }],   // nudge a brand up
     bury:  [{ filter: { inStock: false }, by: 1 }],     // push out-of-stock down
+    customRanking: ["desc(sales)", "desc(rating)"],     // best-sellers first, all else equal
     pin:   ["SKU-HERO", "SKU-2"],                        // force to the top, in order
   },
 });
@@ -194,6 +195,13 @@ const searcher = await createSearcher(index, {
 - **`boost` / `bury`** — raise/lower items matching a `filter` and/or an `ids` list. The
   amount `by` is expressed in units of the **top result's score**, so the same value behaves
   consistently across modes (`by: 1` ≈ one top-result's worth; `0.2` is a gentle nudge).
+- **`customRanking`** — a tie-break chain applied *within* relevance tiers: among results of
+  similar relevance, order by business fields. Each criterion is `"desc(field)"` / `"asc(field)"`
+  (or a bare `"field"` = descending, or `{ field, order }`); missing values sort last. "Similar
+  relevance" means scores within `customRankingEpsilon` of each other (default `0.05` = 5% of the
+  top score) — so genuine relevance still wins, and `customRanking` only decides near-ties.
+
+Order of application: `boost`/`bury` re-score, then `customRanking` tie-breaks, then `pin`.
 
 Rules can be set once on the searcher (above) or **per query** via
 `search(q, k, { rankingRules })`, which overrides the searcher default — handy for

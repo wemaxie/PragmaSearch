@@ -76,6 +76,7 @@ export {
   applyRankingRules,
   type RankingRules,
   type RankingRule,
+  type CustomRankingCriterion,
 } from "./ranking.js";
 
 export {

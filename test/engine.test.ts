@@ -375,3 +375,38 @@ test("applyRankingRules: undefined rules is a no-op", () => {
   const rows = ranked([["a", 1]]);
   assert.equal(applyRankingRules(rows, undefined, () => undefined), rows);
 });
+
+test("applyRankingRules: customRanking tie-breaks within a relevance tier by business fields", () => {
+  const p: Record<string, Product> = {
+    a: { id: "a", title: "A", sales: 10, rating: 4 },
+    b: { id: "b", title: "B", sales: 50, rating: 3 },
+    c: { id: "c", title: "C", sales: 50, rating: 5 },
+  };
+  const get = (id: string) => p[id];
+  // near-equal relevance scores (within the default 5% epsilon) → order by sales desc, then rating desc
+  const out = applyRankingRules(
+    ranked([["a", 1.0], ["b", 0.99], ["c", 0.98]]),
+    { customRanking: ["desc(sales)", "desc(rating)"] },
+    get,
+  );
+  assert.deepEqual(out.map((r) => r.id), ["c", "b", "a"]); // b & c (sales 50) above a; c's rating 5 > b's 3
+
+  // when relevance differs beyond epsilon, relevance still dominates
+  const out2 = applyRankingRules(
+    ranked([["a", 1.0], ["b", 0.2]]),
+    { customRanking: ["desc(sales)"] },
+    get,
+  );
+  assert.deepEqual(out2.map((r) => r.id), ["a", "b"]); // a wins on relevance despite lower sales
+});
+
+test("parseCriterion shorthands: bare field = desc, asc()/desc(), missing sorts last", () => {
+  const p: Record<string, Product> = {
+    a: { id: "a", title: "A", price: 100 },
+    b: { id: "b", title: "B", price: 20 },
+    c: { id: "c", title: "C" }, // no price → last
+  };
+  const get = (id: string) => p[id];
+  const out = applyRankingRules(ranked([["a", 1], ["b", 1], ["c", 1]]), { customRanking: ["asc(price)"] }, get);
+  assert.deepEqual(out.map((r) => r.id), ["b", "a", "c"]); // 20, 100, then missing
+});

@@ -10,8 +10,13 @@ import type { Filter, Product, SearchSignal } from "./types.js";
  *    The amount `by` is expressed in units of the top result's score, so a value
  *    behaves the same regardless of the (very different) score scales across modes.
  *    `by: 1` ≈ "one top-result's worth"; `0.2` is a gentle nudge.
+ *  - `customRanking` is a tie-break chain: among results of *similar* relevance
+ *    (within `customRankingEpsilon` of each other), order by business fields like
+ *    `desc(sales)`, then `desc(rating)` — "best-sellers first, all else equal".
  *  - `pin` forces specific ids to the very top, in the given order, regardless of
  *    score — the hard promotion a homepage/category merchandiser wants.
+ *
+ * Order of application: boost/bury (re-score) → customRanking (tie-break) → pin.
  */
 
 /** A boost/bury target: items matching this filter and/or appearing in `ids`. */
@@ -24,12 +29,25 @@ export interface RankingRule {
   by: number;
 }
 
+/**
+ * A tie-break criterion: a bare field name (`"sales"` → descending), a directional
+ * shorthand (`"desc(sales)"` / `"asc(price)"`), or `{ field, order }`.
+ */
+export type CustomRankingCriterion = string | { field: string; order?: "asc" | "desc" };
+
 /** A set of merchandising rules applied after ranking. */
 export interface RankingRules {
   /** Raise the score of matching items. */
   boost?: RankingRule[];
   /** Lower the score of matching items. */
   bury?: RankingRule[];
+  /** Tie-break chain applied within relevance tiers (e.g. `["desc(sales)", "desc(rating)"]`). */
+  customRanking?: CustomRankingCriterion[];
+  /**
+   * How close two scores must be to count as "the same relevance tier" for
+   * `customRanking`, as a fraction of the top score. Default 0.05 (5%).
+   */
+  customRankingEpsilon?: number;
   /** Force these ids to the top, in this order. */
   pin?: (string | number)[];
 }
@@ -52,6 +70,46 @@ function ruleApplies(rule: CompiledRule, id: string, payload: Product | undefine
   if (rule.idSet?.has(id)) return true;
   if (rule.filter && payload && matchesFilter(payload, rule.filter)) return true;
   return false;
+}
+
+interface CompiledCriterion {
+  field: string;
+  asc: boolean;
+}
+
+/** Parse `"desc(sales)"` / `"asc(price)"` / `"sales"` / `{field,order}` into `{ field, asc }`. */
+function parseCriterion(c: CustomRankingCriterion): CompiledCriterion {
+  if (typeof c === "string") {
+    const m = c.match(/^(asc|desc)\((.+)\)$/i);
+    if (m) return { field: m[2].trim(), asc: m[1].toLowerCase() === "asc" };
+    return { field: c.trim(), asc: false }; // bare field → descending (best-first)
+  }
+  return { field: c.field, asc: (c.order ?? "desc") === "asc" };
+}
+
+/** A comparable scalar for a field, or undefined (missing values always sort last). */
+function fieldValue(p: Product | undefined, field: string): number | string | undefined {
+  const v = p?.[field as keyof Product] as unknown;
+  return typeof v === "number" || typeof v === "string" ? v : undefined;
+}
+
+/** Compare two payloads by the custom-ranking chain; 0 if all criteria tie. */
+function compareByCriteria(
+  pa: Product | undefined,
+  pb: Product | undefined,
+  crits: CompiledCriterion[],
+): number {
+  for (const c of crits) {
+    const va = fieldValue(pa, c.field);
+    const vb = fieldValue(pb, c.field);
+    if (va === undefined && vb === undefined) continue;
+    if (va === undefined) return 1; // missing last
+    if (vb === undefined) return -1;
+    if (va === vb) continue;
+    const base = va < vb ? -1 : 1;
+    return c.asc ? base : -base;
+  }
+  return 0;
 }
 
 /**
@@ -81,6 +139,18 @@ export function applyRankingRules<
       for (const rule of bury) if (ruleApplies(rule, r.id, payload)) r.score -= rule.by * unit;
     }
     ranked = ranked.slice().sort((a, b) => b.score - a.score);
+  }
+
+  if (rules.customRanking?.length) {
+    const crits = rules.customRanking.map(parseCriterion);
+    const top = ranked.reduce((m, r) => Math.max(m, r.score), 0);
+    // Two items are "the same relevance tier" when their scores are within eps.
+    const eps = (rules.customRankingEpsilon ?? 0.05) * (top || 1);
+    ranked = ranked.slice().sort((a, b) => {
+      if (Math.abs(a.score - b.score) > eps) return b.score - a.score; // relevance dominates
+      const d = compareByCriteria(getPayload(a.id), getPayload(b.id), crits);
+      return d !== 0 ? d : b.score - a.score; // fall back to relevance within the tier
+    });
   }
 
   if (pin.length) {
