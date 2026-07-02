@@ -20,12 +20,16 @@ import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import { createAnalytics, type AnalyticsState } from "../src/analytics.js";
+import { verifySearchToken, mergeForcedFilter } from "../src/tokens.js";
+import type { Filter } from "../src/types.js";
 import type { SynonymOptions } from "../src/synonyms.js";
 import type { RankingRules } from "../src/ranking.js";
 import type { PragmaIndex, SearchMode, Product } from "../src/types.js";
 
 // Write endpoints (live index updates) are enabled only when an admin token is set.
 const ADMIN_TOKEN = process.env.PRAGMA_ADMIN_TOKEN;
+// Secret for signed search tokens (multi-tenant forced filters). Enables `?token=`.
+const SEARCH_SECRET = process.env.PRAGMA_SEARCH_SECRET;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -322,6 +326,21 @@ async function main(): Promise<void> {
           if (fp) filter = JSON.parse(fp);
         } catch {
           filter = undefined; // ignore malformed filters
+        }
+        // Signed search token → force its filter (the client can only narrow within it).
+        const tokenParam = url.searchParams.get("token");
+        if (tokenParam) {
+          if (!SEARCH_SECRET) {
+            sendJson(req, res, 401, { error: "search tokens not enabled (set PRAGMA_SEARCH_SECRET)" });
+            return;
+          }
+          try {
+            const payload = verifySearchToken(tokenParam, SEARCH_SECRET);
+            filter = mergeForcedFilter(filter as Filter | undefined, payload.filter);
+          } catch {
+            sendJson(req, res, 401, { error: "invalid or expired search token" });
+            return;
+          }
         }
         if (!q && !filter) {
           sendJson(req, res, 200, { query: "", mode, ms: 0, count: index.meta.count, total: 0, results: [] });

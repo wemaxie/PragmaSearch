@@ -237,6 +237,29 @@ analytics.record({ query: "flying carpet", results: resp.total, zero: (resp.maxS
 analytics.summary({ topN: 20 }); // { zeroResultQueries, topQueries, latency, ... }
 ```
 
+## Multi-tenant search tokens
+
+For per-user or per-tenant scoping, mint an HMAC-signed token that carries a **forced
+filter** the browser can't tamper with — it can only narrow *within* the scope, never
+widen or drop it (the analog of Meilisearch tenant tokens / Typesense scoped keys).
+
+```bash
+# server: set PRAGMA_SEARCH_SECRET, then mint a token per tenant
+npx pragmasearch token --secret "$SECRET" --filter '{"tenant":"acme"}' --exp 3600
+# → eyJmaWx0ZXIi….<sig>   (send with each search: /api/search?...&token=<token>)
+```
+
+```ts
+import { signSearchToken, verifySearchToken, mergeForcedFilter } from "pragmasearch";
+const token = signSearchToken({ filter: { tenant: "acme" }, exp: 1893456000 }, secret);
+const { filter } = verifySearchToken(token, secret);          // throws if tampered/expired
+const effective = mergeForcedFilter(clientFilter, filter);    // forced fields win
+```
+
+On the demo server, set `PRAGMA_SEARCH_SECRET` to enable `&token=`; the token's filter is
+AND-ed into the query and a bad/expired token returns `401`. The payload is signed, not
+encrypted — don't put secrets in the filter. `exp` is a Unix time in **seconds** (optional).
+
 ## Demo server environment variables
 
 | Variable | Default | Description |
@@ -251,6 +274,7 @@ analytics.summary({ topN: 20 }); // { zeroResultQueries, topQueries, latency, ..
 | `PRAGMA_ZERO_FLOOR` | `0.35` | Top-similarity threshold below which a semantic query counts as zero-result |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
 | `PRAGMA_ADMIN_TOKEN` | — | Bearer token that enables the live write endpoints (see below). Unset = writes disabled. |
+| `PRAGMA_SEARCH_SECRET` | — | Secret for signed [search tokens](#multi-tenant-search-tokens); enables `&token=` on `/api/search` |
 | `PRAGMA_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the read API (set to your storefront origin) |
 
 ## Incremental updates (live catalogs)

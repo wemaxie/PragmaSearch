@@ -22,6 +22,7 @@ import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incre
 import { resolveSearchable, fieldText, productText, DEFAULT_SEARCHABLE } from "../src/searchable.js";
 import { buildSynonyms } from "../src/synonyms.js";
 import { applyRankingRules } from "../src/ranking.js";
+import { signSearchToken, verifySearchToken, mergeForcedFilter } from "../src/tokens.js";
 import { highlightProduct, highlightField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product, SearchSignal } from "../src/types.js";
@@ -261,6 +262,37 @@ test("applyUpsert merges embedded + reused and updates count", () => {
   assert.equal(idx.items.length, 2);
   assert.equal(idx.items[0].payload.price, 40); // reused item's payload swapped
   assert.equal(idx.meta.count, 2);
+});
+
+// ---------- signed search tokens ----------
+test("signSearchToken/verifySearchToken round-trips and rejects tampering", () => {
+  const secret = "s3cret";
+  const token = signSearchToken({ filter: { tenant: "acme" } }, secret);
+  assert.deepEqual(verifySearchToken(token, secret).filter, { tenant: "acme" });
+
+  // wrong secret → rejected
+  assert.throws(() => verifySearchToken(token, "nope"), /signature/);
+  // tampered payload (swap the body) → rejected
+  const forged = signSearchToken({ filter: { tenant: "evil" } }, "other");
+  const spliced = forged.split(".")[0] + "." + token.split(".")[1];
+  assert.throws(() => verifySearchToken(spliced, secret), /signature/);
+});
+
+test("verifySearchToken enforces expiry", () => {
+  const secret = "s3cret";
+  const token = signSearchToken({ filter: { tenant: "acme" }, exp: 1000 }, secret);
+  assert.deepEqual(verifySearchToken(token, secret, 999).filter, { tenant: "acme" }); // not yet expired
+  assert.throws(() => verifySearchToken(token, secret, 1001), /expired/);
+});
+
+test("mergeForcedFilter: forced fields win; client may only add narrowing fields", () => {
+  // client can't widen the forced scope
+  assert.deepEqual(
+    mergeForcedFilter({ tenant: "evil", price: { lte: 100 } }, { tenant: "acme" }),
+    { tenant: "acme", price: { lte: 100 } },
+  );
+  assert.deepEqual(mergeForcedFilter(undefined, { tenant: "acme" }), { tenant: "acme" });
+  assert.deepEqual(mergeForcedFilter({ price: { lte: 50 } }, undefined), { price: { lte: 50 } });
 });
 
 // ---------- highlighting ----------

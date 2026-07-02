@@ -3,10 +3,11 @@ import { performance } from "node:perf_hooks";
 import { readFile, stat } from "node:fs/promises";
 import { buildIndex } from "./index-builder.js";
 import { createSearcher } from "./search.js";
+import { signSearchToken } from "./tokens.js";
 import { readProducts, saveIndex, loadIndex } from "./storage.js";
 import type { SynonymOptions } from "./synonyms.js";
 import type { RankingRules } from "./ranking.js";
-import type { SearchMode } from "./types.js";
+import type { SearchMode, Filter } from "./types.js";
 
 const DEFAULT_INDEX_FILE = "pragmasearch-index.json";
 
@@ -77,16 +78,18 @@ PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 Usage:
   pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>] [--compact]
   pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>] [--rules <file.json>]
+  pragmasearch token --secret <s> [--filter '<json>'] [--exp <seconds>]
 
   --searchable  comma-separated fields with optional ^weight, e.g.
                 "title^3,description,brand^2,tags" (default: title^2,description,category,tags)
 
 Examples:
   pragmasearch index data/products.json
-  pragmasearch index data/products.json --searchable "title^3,brand^2,description,tags"
+  pragmasearch index data/products.json --searchable "title^3,brand^2,description,tags" --compact
   pragmasearch search "something for gaming" -k 5
   pragmasearch search "RTX 4070" --mode hybrid
   pragmasearch search "opple airpods" --typo on
+  pragmasearch token --secret s3cret --filter '{"tenant":"acme"}' --exp 3600
 `);
 }
 
@@ -186,11 +189,34 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   console.log("");
 }
 
+function cmdToken(args: ParsedArgs): void {
+  const secret = strFlag(args.flags, "secret") ?? process.env.PRAGMA_SEARCH_SECRET;
+  if (!secret) {
+    usage();
+    throw new Error("token: --secret <s> (or PRAGMA_SEARCH_SECRET) is required");
+  }
+  const filterStr = strFlag(args.flags, "filter");
+  let filter: Record<string, unknown> | undefined;
+  if (filterStr) {
+    try {
+      filter = JSON.parse(filterStr);
+    } catch (e) {
+      throw new Error(`token: --filter must be valid JSON: ${(e as Error).message}`);
+    }
+  }
+  const expStr = strFlag(args.flags, "exp");
+  const exp = expStr ? Math.floor(Date.now() / 1000) + intFlag({ exp: expStr }, "exp", 0) : undefined;
+  console.log(signSearchToken({ filter: filter as Filter | undefined, exp }, secret));
+}
+
 async function main(): Promise<void> {
   const [, , cmd, ...rest] = process.argv;
   const args = parseArgs(rest);
 
   switch (cmd) {
+    case "token":
+      cmdToken(args);
+      break;
     case "index":
       await cmdIndex(args);
       break;

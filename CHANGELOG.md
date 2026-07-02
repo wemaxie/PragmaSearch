@@ -8,6 +8,10 @@ change between minor versions — pin the version you depend on.
 ## [Unreleased]
 
 ### Added
+- **Signed search tokens** (multi-tenant scoping) — `signSearchToken` /
+  `verifySearchToken` / `mergeForcedFilter` (zero-dep, HMAC-SHA256). A token carries
+  a forced filter the browser can't widen or drop; the demo server enables `&token=`
+  via `PRAGMA_SEARCH_SECRET`, and the CLI `token` command mints them. Optional `exp`.
 - **Compact index format** — `saveIndex(path, index, { compact: true })` / CLI
   `--compact`: int8-quantized vectors (base64) + gzip, ~8× smaller on disk with a
   ~0.4% quantization error and identical ranking. `loadIndex` transparently

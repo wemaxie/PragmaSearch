@@ -63,6 +63,13 @@ export {
 export { buildSynonyms, type SynonymOptions } from "./synonyms.js";
 
 export {
+  signSearchToken,
+  verifySearchToken,
+  mergeForcedFilter,
+  type SearchTokenPayload,
+} from "./tokens.js";
+
+export {
   createAnalytics,
   normalizeQuery,
   type Analytics,

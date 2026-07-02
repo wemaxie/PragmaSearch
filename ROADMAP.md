@@ -26,7 +26,8 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [x] Synonyms — multi-way + one-way query expansion ([docs](docs/configuration.md#synonyms))
 - [x] Custom ranking rules / merchandising — boost / bury / pin + custom-ranking tie-break chain ([docs](docs/configuration.md#ranking-rules--merchandising))
 - [ ] Persist the keyword index instead of rebuilding on cold start
-- [ ] Server-mode API auth + CORS config (rate limiting already present)
+- [x] Signed multi-tenant search tokens — HMAC-signed forced filters ([docs](docs/configuration.md#multi-tenant-search-tokens))
+- [ ] Server-mode API auth + CORS config (rate limiting + write-token + search-token already present)
 - [ ] Language-aware tokenization (stemmer/stopwords per language)
 - [x] Compact / quantized index format (gzip + int8 vectors) — CLI `--compact` / `saveIndex({compact})`, ~8× smaller, same ranking
 
