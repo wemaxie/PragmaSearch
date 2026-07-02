@@ -20,6 +20,7 @@ import { searchVectors, createSearcher } from "../src/search.js";
 import { matchesFilter, computeFacets } from "../src/facets.js";
 import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incremental.js";
 import { resolveSearchable, fieldText, productText, DEFAULT_SEARCHABLE } from "../src/searchable.js";
+import { buildSynonyms } from "../src/synonyms.js";
 import { highlightProduct, highlightField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
@@ -302,4 +303,35 @@ test("exactTitleMatches can target a non-title field", () => {
   const hits = exactTitleMatches("acme corp", items, "brand");
   assert.ok(hits.has("1"));
   assert.ok(!hits.has("2"));
+});
+
+// ---------- S1: synonyms ----------
+test("buildSynonyms expands multi-way groups; undefined when empty", () => {
+  assert.equal(buildSynonyms(undefined), undefined);
+  assert.equal(buildSynonyms({ groups: [], oneWay: [] }), undefined);
+
+  const expand = buildSynonyms({ groups: [["laptop", "notebook"]], weight: 0.5 })!;
+  const out = new Map(expand(tokenize("cheap laptop")));
+  assert.equal(out.get("laptop"), 1); // base query term stays weight 1
+  assert.equal(out.get("notebook"), 0.5); // synonym at the reduced weight
+  assert.equal(out.get("cheap"), 1);
+});
+
+test("synonyms let the keyword layer match equivalent terms", () => {
+  const kw = buildKeywordIndex([
+    item("1", "Ultrabook Notebook 14-inch"),
+    item("2", "Wireless Mouse"),
+  ]);
+  const syn = buildSynonyms({ groups: [["laptop", "notebook"]] });
+  assert.equal(kw.search("laptop", 5, false).length, 0); // no synonyms → "laptop" matches nothing
+  assert.equal(kw.search("laptop", 5, false, syn)[0].id, "1"); // expands to "notebook" → #1
+});
+
+test("one-way synonyms are directional", () => {
+  const kw = buildKeywordIndex([item("1", "Sneakers Pro")]);
+  const syn = buildSynonyms({ oneWay: [{ from: "sneakers", to: ["trainers"] }] })!;
+  // querying the TARGET term does not pull in the source doc
+  assert.equal(kw.search("trainers", 5, false, syn).length, 0);
+  // querying the SOURCE term still finds its literal doc
+  assert.equal(kw.search("sneakers", 5, false, syn)[0].id, "1");
 });

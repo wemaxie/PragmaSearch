@@ -55,9 +55,12 @@ export {
   searchVectors,
   createSearcher,
   type Searcher,
+  type SearcherOptions,
   type SearchOptions,
   type UpsertResult,
 } from "./search.js";
+
+export { buildSynonyms, type SynonymOptions } from "./synonyms.js";
 
 export {
   patchPayload,
@@ -82,6 +85,7 @@ export {
   type KeywordIndex,
   type KeywordHit,
   type TypoOptions,
+  type SynonymExpander,
 } from "./hybrid.js";
 
 export { readProducts, saveIndex, loadIndex } from "./storage.js";

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { performance } from "node:perf_hooks";
+import { readFile } from "node:fs/promises";
 import { buildIndex } from "./index-builder.js";
 import { createSearcher } from "./search.js";
 import { readProducts, saveIndex, loadIndex } from "./storage.js";
+import type { SynonymOptions } from "./synonyms.js";
 import type { SearchMode } from "./types.js";
 
 const DEFAULT_INDEX_FILE = "pragmasearch-index.json";
@@ -62,7 +64,7 @@ PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 
 Usage:
   pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>]
-  pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>]
+  pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>]
 
   --searchable  comma-separated fields with optional ^weight, e.g.
                 "title^3,description,brand^2,tags" (default: title^2,description,category,tags)
@@ -139,8 +141,19 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   // --typo off  (or --no-typo) disables typo tolerance; default on.
   const typo = strFlag(args.flags, "typo") === "off" || args.flags["no-typo"] === true ? false : true;
 
+  // --synonyms <file.json>: { groups?: string[][], oneWay?: {from,to[]}[], weight? }
+  const synonymsFile = strFlag(args.flags, "synonyms");
+  let synonyms: SynonymOptions | undefined;
+  if (synonymsFile) {
+    try {
+      synonyms = JSON.parse(await readFile(synonymsFile, "utf8")) as SynonymOptions;
+    } catch (e) {
+      throw new Error(`--synonyms: could not read/parse ${synonymsFile}: ${(e as Error).message}`);
+    }
+  }
+
   const index = await loadIndex(indexFile);
-  const searcher = await createSearcher(index);
+  const searcher = await createSearcher(index, { synonyms });
 
   const t0 = performance.now();
   const { hits, total } = await searcher.search(query, k, { mode, typo });

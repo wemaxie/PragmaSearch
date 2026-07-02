@@ -6,8 +6,10 @@ import {
   exactTitleMatches,
   type KeywordIndex,
   type TypoOptions,
+  type SynonymExpander,
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
+import { buildSynonyms, type SynonymOptions } from "./synonyms.js";
 import { resolveSearchable } from "./searchable.js";
 import { planUpsert, applyUpsert, removeItems, patchPayload, round4 } from "./incremental.js";
 import { highlightProduct, type HighlightOptions } from "./highlight.js";
@@ -113,12 +115,24 @@ export interface Searcher {
   keyword: KeywordIndex;
 }
 
+/** Options for {@link createSearcher}. */
+export interface SearcherOptions {
+  /**
+   * Synonyms applied as query expansion in the keyword layer (multi-way `groups`
+   * and directional `oneWay`). See {@link SynonymOptions}.
+   */
+  synonyms?: SynonymOptions;
+}
+
 /**
  * Load a searcher over an in-memory index. Reuses the SAME model the index was
  * built with (from index.meta) so query and document vectors are comparable,
  * and builds the keyword (BM25) layer in memory for hybrid search.
  */
-export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
+export async function createSearcher(
+  index: PragmaIndex,
+  opts: SearcherOptions = {},
+): Promise<Searcher> {
   const meta = index.meta;
   // Fail loudly on a malformed/incompatible index instead of silently returning garbage rankings.
   if (typeof meta?.model !== "string" || !meta.model || typeof meta.dtype !== "string" || !meta.dtype) {
@@ -148,6 +162,8 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
   const attrs = resolveSearchable(meta.searchableAttributes);
   // Field the exact-match boost targets: the highest-weight searchable field.
   const primaryField = [...attrs].sort((a, b) => b.weight - a.weight)[0]?.field ?? "title";
+  // Query-expansion synonyms for the keyword layer (undefined = disabled, zero cost).
+  const synonyms: SynonymExpander | undefined = buildSynonyms(opts.synonyms);
 
   // Reassigned on incremental add/remove (text changes invalidate the keyword index).
   let keyword = buildKeywordIndex(index.items, attrs);
@@ -204,7 +220,7 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
       ranked = candidates.map((it) => ({ id: String(it.id), score: 0, signals: [] }));
     } else if (mode === "keyword") {
       ranked = keyword
-        .search(q, candidates.length || 1, opts.typo)
+        .search(q, candidates.length || 1, opts.typo, synonyms)
         .filter((h) => candidateIds.has(h.id))
         .map((h) => ({ id: h.id, score: h.score, signals: ["keyword"] as SearchSignal[] }));
     } else {
@@ -219,7 +235,7 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
         // hybrid: fuse vector + keyword rankings with RRF, then boost exact title matches.
         const vIds = vScored.map((r) => r.id);
         const kIds = keyword
-          .search(q, candidates.length || 1, opts.typo)
+          .search(q, candidates.length || 1, opts.typo, synonyms)
           .filter((h) => candidateIds.has(h.id))
           .map((h) => h.id);
         const fused = rrfFuse([vIds, kIds], rrfK);

@@ -21,6 +21,10 @@ change between minor versions — pin the version you depend on.
   search and `upsert` reuse it. Default is unchanged
   (`title^2, description, category, tags`) — existing indexes keep working.
   Exposes `resolveSearchable` / `fieldText` / `DEFAULT_SEARCHABLE`.
+- **Synonyms** — query expansion for the keyword layer, multi-way `groups` and
+  directional `oneWay`, with a configurable synonym `weight`. Pass via
+  `createSearcher(index, { synonyms })`, the CLI `--synonyms <file.json>`, or the
+  demo server's `PRAGMA_SYNONYMS`. Exposes `buildSynonyms`.
 
 ## [0.2.0]
 

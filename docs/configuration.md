@@ -138,6 +138,36 @@ typo: { minLength: 4, secondTypoLength: 8, penalty: 0.5 }
 | `secondTypoLength` | 8 | Words ≥ this length may absorb 2 typos |
 | `penalty` | 0.5 | Score multiplier per edit-distance unit (so exact hits rank first) |
 
+## Synonyms
+
+Synonyms widen the **keyword** layer so literal terms your catalog doesn't use still
+match. They're applied as query expansion — a synonym match scores a bit lower than a
+genuine one (default `weight` 0.6), so real matches still rank first.
+
+```ts
+const searcher = await createSearcher(index, {
+  synonyms: {
+    groups: [                                   // multi-way: any member matches all
+      ["laptop", "notebook"],
+      ["earphones", "headphones", "earbuds"],
+    ],
+    oneWay: [                                   // directional: from → to only
+      { from: "iphone", to: ["apple phone"] },
+    ],
+    weight: 0.6,
+  },
+});
+```
+
+- **`groups`** — equivalence sets; querying any member also matches the others.
+- **`oneWay`** — querying `from` also matches `to`, but not the reverse (e.g. a brand
+  → its generic term).
+- Phrases are tokenized/stemmed like documents, so `"laptops"` and `"laptop"` unify, and
+  multi-word phrases (`"graphics card"`) are matched as a contiguous run in the query.
+
+CLI: `pragmasearch search "earphones" --synonyms synonyms.json` (the JSON is the object
+above). Demo server: point `PRAGMA_SYNONYMS` at that file.
+
 ## Demo server environment variables
 
 | Variable | Default | Description |
@@ -146,8 +176,10 @@ typo: { minLength: 4, secondTypoLength: 8, penalty: 0.5 }
 | `PRAGMA_INDEX` | `pragmasearch-index.json` | Index file to serve (or pass as the first CLI arg) |
 | `PRAGMA_PRODUCTS` | `data/products.json` | Products to build from if the index is missing |
 | `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
+| `PRAGMA_SYNONYMS` | — | Path to a synonyms JSON file (see [Synonyms](#synonyms)) |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
 | `PRAGMA_ADMIN_TOKEN` | — | Bearer token that enables the live write endpoints (see below). Unset = writes disabled. |
+| `PRAGMA_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the read API (set to your storefront origin) |
 
 ## Incremental updates (live catalogs)
 

@@ -112,9 +112,23 @@ export interface KeywordHit {
   score: number;
 }
 
+/**
+ * Expands a tokenized query into weighted search terms (base terms at weight 1,
+ * synonym-derived terms lower). Produced by `buildSynonyms`; see ./synonyms.
+ */
+export type SynonymExpander = (queryTokens: string[]) => Array<[string, number]>;
+
 export interface KeywordIndex {
-  /** Return product ids (with BM25 scores) ranked best-first. Typo tolerance is on by default. */
-  search(query: string, limit: number, typo?: boolean | TypoOptions): KeywordHit[];
+  /**
+   * Return product ids (with BM25 scores) ranked best-first. Typo tolerance is on
+   * by default. Pass a `synonyms` expander to also match query-equivalent terms.
+   */
+  search(
+    query: string,
+    limit: number,
+    typo?: boolean | TypoOptions,
+    synonyms?: SynonymExpander,
+  ): KeywordHit[];
 }
 
 /**
@@ -180,20 +194,26 @@ export function buildKeywordIndex(
     query: string,
     limit: number,
     typoOpt?: boolean | TypoOptions,
+    synonyms?: SynonymExpander,
   ): KeywordHit[] {
     const typo = resolveTypo(typoOpt);
     const terms = tokenize(query);
     if (terms.length === 0 || N === 0) return [];
+    // Synonym expansion widens the query to equivalent terms (base terms at weight
+    // 1, synonyms lower). Without it, each occurrence is searched at weight 1.
+    const weightedTerms: Array<[string, number]> = synonyms
+      ? synonyms(terms)
+      : terms.map((t) => [t, 1]);
     const scores = new Map<string, number>();
-    for (const term of terms) {
-      for (const [matchTerm, weight] of expandTerm(term, typo)) {
+    for (const [term, termWeight] of weightedTerms) {
+      for (const [matchTerm, typoWeight] of expandTerm(term, typo)) {
         const docMap = postings.get(matchTerm);
         if (!docMap) continue;
         const termIdf = idf(matchTerm);
         for (const [docId, tf] of docMap) {
           const dl = docLen.get(docId) ?? 0;
           const denom = tf + K1 * (1 - B + (B * dl) / (avgdl || 1));
-          const contribution = termIdf * ((tf * (K1 + 1)) / denom) * weight;
+          const contribution = termIdf * ((tf * (K1 + 1)) / denom) * typoWeight * termWeight;
           scores.set(docId, (scores.get(docId) ?? 0) + contribution);
         }
       }

@@ -19,6 +19,7 @@ import { gzipSync } from "node:zlib";
 import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
+import type { SynonymOptions } from "../src/synonyms.js";
 import type { PragmaIndex, SearchMode, Product } from "../src/types.js";
 
 // Write endpoints (live index updates) are enabled only when an admin token is set.
@@ -67,6 +68,18 @@ const SECURITY_HEADERS: Record<string, string> = {
     "default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline'; " +
     "style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
+
+/** Load a synonyms config from PRAGMA_SYNONYMS (a JSON file), if set. */
+async function getSynonyms(): Promise<SynonymOptions | undefined> {
+  const file = process.env.PRAGMA_SYNONYMS;
+  if (!file) return undefined;
+  try {
+    return JSON.parse(await readFile(fromEnv(file, file), "utf8")) as SynonymOptions;
+  } catch (e) {
+    console.warn(`PRAGMA_SYNONYMS: ignoring ${file} (${(e as Error).message})`);
+    return undefined;
+  }
+}
 
 /** Load the index, building it from the demo products if it doesn't exist yet. */
 async function getIndex(): Promise<PragmaIndex> {
@@ -174,7 +187,9 @@ function readJsonBody(req: IncomingMessage, maxBytes = 8_000_000): Promise<unkno
 async function main(): Promise<void> {
   console.log("Loading model + index ...");
   const index = await getIndex();
-  const searcher: Searcher = await createSearcher(index);
+  const synonyms = await getSynonyms();
+  if (synonyms) console.log("  synonyms enabled (PRAGMA_SYNONYMS).");
+  const searcher: Searcher = await createSearcher(index, { synonyms });
 
   // Lightweight title list for instant client-side autocomplete (no model call).
   // Rebuilt after live index updates.
