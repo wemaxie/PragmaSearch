@@ -23,7 +23,7 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 **Should-have (relevance tuning + production readiness)**
 - [x] Configurable searchable attributes & field weights ([docs](docs/configuration.md#searchable-attributes--field-weights))
 - [x] Synonyms — multi-way + one-way query expansion ([docs](docs/configuration.md#synonyms))
-- [ ] Custom ranking rules / merchandising (boost / bury / pin)
+- [x] Custom ranking rules / merchandising — boost / bury / pin ([docs](docs/configuration.md#ranking-rules--merchandising))
 - [ ] Persist the keyword index instead of rebuilding on cold start
 - [ ] Server-mode API auth + CORS config (rate limiting already present)
 - [ ] Language-aware tokenization (stemmer/stopwords per language)

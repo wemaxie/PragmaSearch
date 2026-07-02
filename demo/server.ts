@@ -20,6 +20,7 @@ import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { SynonymOptions } from "../src/synonyms.js";
+import type { RankingRules } from "../src/ranking.js";
 import type { PragmaIndex, SearchMode, Product } from "../src/types.js";
 
 // Write endpoints (live index updates) are enabled only when an admin token is set.
@@ -69,14 +70,14 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
-/** Load a synonyms config from PRAGMA_SYNONYMS (a JSON file), if set. */
-async function getSynonyms(): Promise<SynonymOptions | undefined> {
-  const file = process.env.PRAGMA_SYNONYMS;
+/** Load a JSON config from an env-named file, warning (not failing) on a bad file. */
+async function loadJsonEnv<T>(envVar: string): Promise<T | undefined> {
+  const file = process.env[envVar];
   if (!file) return undefined;
   try {
-    return JSON.parse(await readFile(fromEnv(file, file), "utf8")) as SynonymOptions;
+    return JSON.parse(await readFile(fromEnv(file, file), "utf8")) as T;
   } catch (e) {
-    console.warn(`PRAGMA_SYNONYMS: ignoring ${file} (${(e as Error).message})`);
+    console.warn(`${envVar}: ignoring ${file} (${(e as Error).message})`);
     return undefined;
   }
 }
@@ -187,9 +188,11 @@ function readJsonBody(req: IncomingMessage, maxBytes = 8_000_000): Promise<unkno
 async function main(): Promise<void> {
   console.log("Loading model + index ...");
   const index = await getIndex();
-  const synonyms = await getSynonyms();
+  const synonyms = await loadJsonEnv<SynonymOptions>("PRAGMA_SYNONYMS");
+  const rankingRules = await loadJsonEnv<RankingRules>("PRAGMA_RANKING");
   if (synonyms) console.log("  synonyms enabled (PRAGMA_SYNONYMS).");
-  const searcher: Searcher = await createSearcher(index, { synonyms });
+  if (rankingRules) console.log("  ranking rules enabled (PRAGMA_RANKING).");
+  const searcher: Searcher = await createSearcher(index, { synonyms, rankingRules });
 
   // Lightweight title list for instant client-side autocomplete (no model call).
   // Rebuilt after live index updates.

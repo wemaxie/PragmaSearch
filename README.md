@@ -59,10 +59,11 @@ replace your hosted-search bill with $0.
 | **Typo tolerance** | ✅ | ✅ |
 | **Filtering · faceting · pagination** | ✅ | ✅ |
 | **Result highlighting** | ✅ | ✅ |
+| **Synonyms · ranking rules** (boost/bury/pin) | ✅ | ✅ [docs](docs/configuration.md#synonyms) |
 | **Drop-in UI widget** | ✅ | ✅ [docs](docs/widget.md) |
 
 > Built for small-to-mid catalogs (≤ ~50k items). For million-SKU real-time catalogs with
-> merchandising and analytics, the hosted platforms still win — see the [roadmap](ROADMAP.md).
+> deep analytics and A/B testing, the hosted platforms still win — see the [roadmap](ROADMAP.md).
 
 ## 🚀 Quick start
 
@@ -133,9 +134,10 @@ Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, p
 **result highlighting**, a **[drop-in search widget](docs/widget.md)** (dependency-free, themeable),
 **[configurable searchable attributes & field weights](docs/configuration.md#searchable-attributes--field-weights)**,
 **[synonyms](docs/configuration.md#synonyms)** (multi-way + one-way query expansion),
+**[ranking rules](docs/configuration.md#ranking-rules--merchandising)** (boost / bury / pin),
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
-multilingual, CLI + API + demo server. Next: ranking rules (boost/bury/pin), and a full
-React component adapter — see **[ROADMAP.md](ROADMAP.md)**.
+multilingual, CLI + API + demo server. Next: a full React component adapter and a persisted
+keyword index — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community
 

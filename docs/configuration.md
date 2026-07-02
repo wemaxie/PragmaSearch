@@ -168,6 +168,33 @@ const searcher = await createSearcher(index, {
 CLI: `pragmasearch search "earphones" --synonyms synonyms.json` (the JSON is the object
 above). Demo server: point `PRAGMA_SYNONYMS` at that file.
 
+## Ranking rules / merchandising
+
+Merchandising on top of relevance — applied as a post-fusion re-score, so it works in
+every mode (hybrid, vector, keyword, and browse):
+
+```ts
+const searcher = await createSearcher(index, {
+  rankingRules: {
+    boost: [{ filter: { brand: "Acme" }, by: 0.5 }],   // nudge a brand up
+    bury:  [{ filter: { inStock: false }, by: 1 }],     // push out-of-stock down
+    pin:   ["SKU-HERO", "SKU-2"],                        // force to the top, in order
+  },
+});
+```
+
+- **`pin`** — force these ids to the very top, in order, regardless of score (they're
+  tagged with a `"pinned"` signal). The hard promotion for a hero product or a category page.
+- **`boost` / `bury`** — raise/lower items matching a `filter` and/or an `ids` list. The
+  amount `by` is expressed in units of the **top result's score**, so the same value behaves
+  consistently across modes (`by: 1` ≈ one top-result's worth; `0.2` is a gentle nudge).
+
+Rules can be set once on the searcher (above) or **per query** via
+`search(q, k, { rankingRules })`, which overrides the searcher default — handy for
+query-conditional merchandising (e.g. pin a promo for one search term).
+
+CLI: `pragmasearch search "keyboard" --rules rules.json`. Demo server: `PRAGMA_RANKING`.
+
 ## Demo server environment variables
 
 | Variable | Default | Description |
@@ -177,6 +204,7 @@ above). Demo server: point `PRAGMA_SYNONYMS` at that file.
 | `PRAGMA_PRODUCTS` | `data/products.json` | Products to build from if the index is missing |
 | `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
 | `PRAGMA_SYNONYMS` | — | Path to a synonyms JSON file (see [Synonyms](#synonyms)) |
+| `PRAGMA_RANKING` | — | Path to a ranking-rules JSON file (see [Ranking rules](#ranking-rules--merchandising)) |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
 | `PRAGMA_ADMIN_TOKEN` | — | Bearer token that enables the live write endpoints (see below). Unset = writes disabled. |
 | `PRAGMA_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the read API (set to your storefront origin) |

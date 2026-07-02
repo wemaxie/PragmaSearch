@@ -10,6 +10,7 @@ import {
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
 import { buildSynonyms, type SynonymOptions } from "./synonyms.js";
+import { applyRankingRules, type RankingRules } from "./ranking.js";
 import { resolveSearchable } from "./searchable.js";
 import { planUpsert, applyUpsert, removeItems, patchPayload, round4 } from "./incremental.js";
 import { highlightProduct, type HighlightOptions } from "./highlight.js";
@@ -78,6 +79,11 @@ export interface SearchOptions {
   offset?: number;
   /** Highlight matching words in result fields: `true` (title+description) or a config object. */
   highlight?: boolean | HighlightOptions;
+  /**
+   * Merchandising rules (boost / bury / pin) applied after ranking, for this query.
+   * Overrides the searcher-level default when set. See {@link RankingRules}.
+   */
+  rankingRules?: RankingRules;
 }
 
 /** Result of an incremental update. */
@@ -122,6 +128,11 @@ export interface SearcherOptions {
    * and directional `oneWay`). See {@link SynonymOptions}.
    */
   synonyms?: SynonymOptions;
+  /**
+   * Default merchandising rules (boost / bury / pin) applied to every query. A
+   * per-query `SearchOptions.rankingRules` overrides this. See {@link RankingRules}.
+   */
+  rankingRules?: RankingRules;
 }
 
 /**
@@ -164,6 +175,8 @@ export async function createSearcher(
   const primaryField = [...attrs].sort((a, b) => b.weight - a.weight)[0]?.field ?? "title";
   // Query-expansion synonyms for the keyword layer (undefined = disabled, zero cost).
   const synonyms: SynonymExpander | undefined = buildSynonyms(opts.synonyms);
+  // Default merchandising rules (a per-query rule set overrides this).
+  const defaultRankingRules = opts.rankingRules;
 
   // Reassigned on incremental add/remove (text changes invalidate the keyword index).
   let keyword = buildKeywordIndex(index.items, attrs);
@@ -254,6 +267,13 @@ export async function createSearcher(
     }
 
     ranked.sort((a, b) => b.score - a.score);
+
+    // 2b. Merchandising: boost / bury / pin (post-fusion re-score). Per-query rules
+    // override the searcher-level default.
+    const rules = opts.rankingRules ?? defaultRankingRules;
+    if (rules) {
+      ranked = applyRankingRules(ranked, rules, (id) => byId.get(id)?.payload);
+    }
 
     // 3. Paginate + materialize the page.
     const hl = opts.highlight;

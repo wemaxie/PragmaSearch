@@ -25,6 +25,12 @@ change between minor versions — pin the version you depend on.
   directional `oneWay`, with a configurable synonym `weight`. Pass via
   `createSearcher(index, { synonyms })`, the CLI `--synonyms <file.json>`, or the
   demo server's `PRAGMA_SYNONYMS`. Exposes `buildSynonyms`.
+- **Ranking rules / merchandising** — `boost` / `bury` items by filter or id, and
+  `pin` ids to the top, applied as a post-fusion re-score (works in every mode).
+  Set on the searcher (`createSearcher(index, { rankingRules })`) or per query
+  (`search(q, k, { rankingRules })`); CLI `--rules <file.json>`; demo
+  `PRAGMA_RANKING`. Pinned hits carry a `"pinned"` signal. Exposes
+  `applyRankingRules`.
 
 ## [0.2.0]
 

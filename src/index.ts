@@ -63,6 +63,12 @@ export {
 export { buildSynonyms, type SynonymOptions } from "./synonyms.js";
 
 export {
+  applyRankingRules,
+  type RankingRules,
+  type RankingRule,
+} from "./ranking.js";
+
+export {
   patchPayload,
   removeItems,
   planUpsert,

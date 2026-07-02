@@ -21,9 +21,10 @@ import { matchesFilter, computeFacets } from "../src/facets.js";
 import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incremental.js";
 import { resolveSearchable, fieldText, productText, DEFAULT_SEARCHABLE } from "../src/searchable.js";
 import { buildSynonyms } from "../src/synonyms.js";
+import { applyRankingRules } from "../src/ranking.js";
 import { highlightProduct, highlightField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
-import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
+import type { PragmaIndex, IndexItem, Product, SearchSignal } from "../src/types.js";
 
 const item = (id: string, title: string): IndexItem => ({ id, vector: [], payload: { id, title } });
 
@@ -334,4 +335,43 @@ test("one-way synonyms are directional", () => {
   assert.equal(kw.search("trainers", 5, false, syn).length, 0);
   // querying the SOURCE term still finds its literal doc
   assert.equal(kw.search("sneakers", 5, false, syn)[0].id, "1");
+});
+
+// ---------- S2: ranking rules (boost / bury / pin) ----------
+const ranked = (rows: [string, number][]) =>
+  rows.map(([id, score]) => ({ id, score, signals: [] as SearchSignal[] }));
+
+test("applyRankingRules: pin forces ids to the top, in order, tagged 'pinned'", () => {
+  const out = applyRankingRules(
+    ranked([["a", 0.9], ["b", 0.5], ["c", 0.1]]),
+    { pin: ["c", "b"] },
+    () => undefined,
+  );
+  assert.deepEqual(out.map((r) => r.id), ["c", "b", "a"]);
+  assert.ok(out[0].signals.includes("pinned"));
+  assert.ok(!out[2].signals.includes("pinned")); // unpinned untouched
+});
+
+test("applyRankingRules: boost by filter lifts matching items; bury by id sinks them", () => {
+  const payloads: Record<string, Product> = {
+    a: { id: "a", title: "A", brand: "Acme" },
+    b: { id: "b", title: "B", brand: "Other" },
+    c: { id: "c", title: "C", brand: "Acme" },
+  };
+  const get = (id: string) => payloads[id];
+  // top score = 1.0 → boost `by: 1` adds ~1.0; Acme items (a, c) jump above b
+  const boosted = applyRankingRules(
+    ranked([["b", 1.0], ["a", 0.6], ["c", 0.2]]),
+    { boost: [{ filter: { brand: "Acme" }, by: 1 }] },
+    get,
+  );
+  assert.deepEqual(boosted.map((r) => r.id), ["a", "c", "b"]);
+
+  const buried = applyRankingRules(ranked([["b", 1.0], ["a", 0.6]]), { bury: [{ ids: ["b"], by: 1 }] }, get);
+  assert.deepEqual(buried.map((r) => r.id), ["a", "b"]);
+});
+
+test("applyRankingRules: undefined rules is a no-op", () => {
+  const rows = ranked([["a", 1]]);
+  assert.equal(applyRankingRules(rows, undefined, () => undefined), rows);
 });

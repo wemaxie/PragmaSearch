@@ -67,8 +67,8 @@ export interface PragmaIndex {
   items: IndexItem[];
 }
 
-/** Which retrieval signal(s) surfaced a hit. */
-export type SearchSignal = "vector" | "keyword" | "exact";
+/** Which retrieval signal(s) surfaced a hit. `pinned` = promoted by a ranking rule. */
+export type SearchSignal = "vector" | "keyword" | "exact" | "pinned";
 
 /** Search strategy. Hybrid (default) fuses vector + keyword; the others isolate one layer. */
 export type SearchMode = "hybrid" | "vector" | "keyword";

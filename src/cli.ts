@@ -5,6 +5,7 @@ import { buildIndex } from "./index-builder.js";
 import { createSearcher } from "./search.js";
 import { readProducts, saveIndex, loadIndex } from "./storage.js";
 import type { SynonymOptions } from "./synonyms.js";
+import type { RankingRules } from "./ranking.js";
 import type { SearchMode } from "./types.js";
 
 const DEFAULT_INDEX_FILE = "pragmasearch-index.json";
@@ -48,6 +49,17 @@ function strFlag(flags: ParsedArgs["flags"], name: string): string | undefined {
   return v as string;
 }
 
+/** Read a flag that names a JSON file and parse it; undefined if the flag is absent. */
+async function readJsonFlag<T>(flags: ParsedArgs["flags"], name: string): Promise<T | undefined> {
+  const file = strFlag(flags, name);
+  if (!file) return undefined;
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as T;
+  } catch (e) {
+    throw new Error(`--${name}: could not read/parse ${file}: ${(e as Error).message}`);
+  }
+}
+
 /** Parse `-k`: a positive integer or throw. */
 function intFlag(flags: ParsedArgs["flags"], name: string, dflt: number): number {
   const v = flags[name];
@@ -64,7 +76,7 @@ PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 
 Usage:
   pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>]
-  pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>]
+  pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>] [--rules <file.json>]
 
   --searchable  comma-separated fields with optional ^weight, e.g.
                 "title^3,description,brand^2,tags" (default: title^2,description,category,tags)
@@ -142,18 +154,12 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   const typo = strFlag(args.flags, "typo") === "off" || args.flags["no-typo"] === true ? false : true;
 
   // --synonyms <file.json>: { groups?: string[][], oneWay?: {from,to[]}[], weight? }
-  const synonymsFile = strFlag(args.flags, "synonyms");
-  let synonyms: SynonymOptions | undefined;
-  if (synonymsFile) {
-    try {
-      synonyms = JSON.parse(await readFile(synonymsFile, "utf8")) as SynonymOptions;
-    } catch (e) {
-      throw new Error(`--synonyms: could not read/parse ${synonymsFile}: ${(e as Error).message}`);
-    }
-  }
+  const synonyms = await readJsonFlag<SynonymOptions>(args.flags, "synonyms");
+  // --rules <file.json>: { boost?: [...], bury?: [...], pin?: [...] }
+  const rankingRules = await readJsonFlag<RankingRules>(args.flags, "rules");
 
   const index = await loadIndex(indexFile);
-  const searcher = await createSearcher(index, { synonyms });
+  const searcher = await createSearcher(index, { synonyms, rankingRules });
 
   const t0 = performance.now();
   const { hits, total } = await searcher.search(query, k, { mode, typo });
