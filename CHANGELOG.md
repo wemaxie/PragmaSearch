@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-02
+
 ### Added
 - **Snippet windows** in highlighting — `highlight: { snippet: N }` (HTTP `&snippet=N`)
   returns a ~N-word excerpt around the first match with `…` ellipsis (Algolia's
