@@ -28,7 +28,7 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [ ] Persist the keyword index instead of rebuilding on cold start
 - [ ] Server-mode API auth + CORS config (rate limiting already present)
 - [ ] Language-aware tokenization (stemmer/stopwords per language)
-- [ ] Compact / quantized index format (gzip + int8 vectors) for lower memory & faster loads
+- [x] Compact / quantized index format (gzip + int8 vectors) — CLI `--compact` / `saveIndex({compact})`, ~8× smaller, same ranking
 
 **Nice-to-have**
 - [x] Search analytics — top queries, **zero-result queries**, latency ([docs](docs/configuration.md#analytics)). Next: A/B testing, a docs site

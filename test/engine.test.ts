@@ -135,6 +135,34 @@ test("saveIndex/loadIndex round-trip", async () => {
   await rm(f, { force: true });
 });
 
+test("compact index: int8+gzip round-trips within quantization error and is much smaller", async () => {
+  const { readFile: rf, stat } = await import("node:fs/promises");
+  const dim = 384;
+  // a normalized-ish vector
+  const raw = Array.from({ length: dim }, (_, i) => Math.sin(i) / Math.sqrt(dim / 2));
+  const idx: PragmaIndex = {
+    meta: { version: 1, model: "m", dtype: "q8", dim, pooling: "mean", normalize: true, count: 1, builtAt: "" },
+    items: Array.from({ length: 50 }, (_, n) => ({ id: `id${n}`, vector: raw, payload: { id: `id${n}`, title: `T${n}` } })),
+  };
+  const plain = join(tmpdir(), `ps-plain-${process.pid}.json`);
+  const compact = join(tmpdir(), `ps-compact-${process.pid}.json.gz`);
+  await saveIndex(plain, idx);
+  await saveIndex(compact, idx, { compact: true });
+
+  const loaded = await loadIndex(compact);
+  assert.equal(loaded.items.length, 50);
+  assert.equal(loaded.meta.vectorEncoding, undefined); // marker stripped after dequantize
+  // dequantized vectors are close to the originals (int8/127 error)
+  const maxErr = Math.max(...loaded.items[0].vector.map((v, i) => Math.abs(v - raw[i])));
+  assert.ok(maxErr < 0.01, `max quant error ${maxErr}`);
+  // and the file is much smaller
+  const [{ size: sPlain }, { size: sCompact }] = await Promise.all([stat(plain), stat(compact)]);
+  assert.ok(sCompact < sPlain / 3, `compact ${sCompact} vs plain ${sPlain}`);
+  void rf;
+  await rm(plain, { force: true });
+  await rm(compact, { force: true });
+});
+
 // ---------- encoder-drift guard (throws before any model download) ----------
 test("createSearcher rejects an incompatible index format version", async () => {
   await assert.rejects(

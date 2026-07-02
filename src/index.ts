@@ -105,4 +105,11 @@ export {
   type SynonymExpander,
 } from "./hybrid.js";
 
-export { readProducts, saveIndex, loadIndex } from "./storage.js";
+export {
+  readProducts,
+  saveIndex,
+  loadIndex,
+  quantizeVector,
+  dequantizeVector,
+  type SaveOptions,
+} from "./storage.js";

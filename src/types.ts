@@ -42,6 +42,12 @@ export interface IndexMeta {
   pooling: "mean";
   /** Whether vectors were L2-normalized (so cosine == dot product). */
   normalize: boolean;
+  /**
+   * How vectors are encoded on disk: `"f32"` (default — JSON number arrays) or
+   * `"int8"` (base64-packed, ~5× smaller, ~0.4% quantization error). In memory
+   * they're always floats — `loadIndex` dequantizes transparently.
+   */
+  vectorEncoding?: "f32" | "int8";
   /** Number of indexed items. */
   count: number;
   /**

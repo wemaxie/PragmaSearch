@@ -8,6 +8,11 @@ change between minor versions — pin the version you depend on.
 ## [Unreleased]
 
 ### Added
+- **Compact index format** — `saveIndex(path, index, { compact: true })` / CLI
+  `--compact`: int8-quantized vectors (base64) + gzip, ~8× smaller on disk with a
+  ~0.4% quantization error and identical ranking. `loadIndex` transparently
+  gunzips and dequantizes (gzip auto-detected; back-compatible with plain JSON).
+  New `meta.vectorEncoding`; exposes `quantizeVector` / `dequantizeVector`.
 - **Custom ranking (tie-break chain)** — `rankingRules.customRanking`, e.g.
   `["desc(sales)", "desc(rating)"]`: among results of similar relevance (within
   `customRankingEpsilon`, default 5% of the top score) order by business fields.

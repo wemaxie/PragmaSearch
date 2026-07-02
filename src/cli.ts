@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { performance } from "node:perf_hooks";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { buildIndex } from "./index-builder.js";
 import { createSearcher } from "./search.js";
 import { readProducts, saveIndex, loadIndex } from "./storage.js";
@@ -75,7 +75,7 @@ function usage(): void {
 PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 
 Usage:
-  pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>]
+  pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>] [--compact]
   pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>] [--rules <file.json>]
 
   --searchable  comma-separated fields with optional ^weight, e.g.
@@ -96,7 +96,8 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
     usage();
     throw new Error("index: missing <products.json>");
   }
-  const out = strFlag(args.flags, "out") ?? DEFAULT_INDEX_FILE;
+  const compact = args.flags.compact === true;
+  const out = strFlag(args.flags, "out") ?? (compact ? `${DEFAULT_INDEX_FILE}.gz` : DEFAULT_INDEX_FILE);
   const model = strFlag(args.flags, "model");
   const dtype = strFlag(args.flags, "dtype");
   const searchableFlag = strFlag(args.flags, "searchable");
@@ -126,13 +127,14 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
   });
   const secs = ((performance.now() - t0) / 1000).toFixed(1);
 
-  await saveIndex(out, index);
+  await saveIndex(out, index, { compact });
+  const { size } = await stat(out);
   const fields = (index.meta.searchableAttributes ?? [])
     .map((a) => (a.weight === 1 ? a.field : `${a.field}^${a.weight}`))
     .join(", ");
   console.log(
     `\nDone. model=${index.meta.model} dim=${index.meta.dim} dtype=${index.meta.dtype} ` +
-      `items=${index.meta.count} in ${secs}s -> ${out}` +
+      `items=${index.meta.count} in ${secs}s -> ${out} (${(size / 1024 / 1024).toFixed(2)} MB${compact ? ", compact int8+gzip" : ""})` +
       (fields ? `\n  searchable: ${fields}` : ""),
   );
 }

@@ -18,6 +18,7 @@ npx pragmasearch index products.json [--out <file>] [--model <id>] [--dtype <q8|
 | `--model` | `Xenova/all-MiniLM-L6-v2` | Embedding model (see [Models](#models)) |
 | `--dtype` | `q8` | Quantization: `q8` (small/fast) or `fp32` (max quality) |
 | `--searchable` | `title^2,description,category,tags` | Fields to search + weights (see [below](#searchable-attributes--field-weights)) |
+| `--compact` | off | Write a compact index: int8-quantized vectors + gzip (~8× smaller, ~0.4% quantization error, same ranking). `loadIndex` reads it transparently. |
 
 Programmatic equivalent:
 
