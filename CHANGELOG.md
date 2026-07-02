@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-02
+
 ### Added
 - **Search analytics** — `createAnalytics()` records top queries, **zero-result
   queries**, and latency (p50/p95/p99), bounded in memory and serializable. The
