@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-02
+
 ### Added
 - **Production server** — `createSearchServer(searcher, opts)` and a
   `pragmasearch serve` CLI command ship a hardened, dependency-free JSON API server
