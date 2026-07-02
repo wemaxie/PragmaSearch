@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-02
+
 ### Added
 - **Signed search tokens** (multi-tenant scoping) — `signSearchToken` /
   `verifySearchToken` / `mergeForcedFilter` (zero-dep, HMAC-SHA256). A token carries
