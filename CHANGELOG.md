@@ -7,6 +7,14 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **Drop-in search widget** (`widget/pragmasearch-widget.js` + `.css`) — a
+  dependency-free Algolia-InstantSearch-style UI (search box, autocomplete,
+  highlighted hits, faceted sidebar, pagination) that talks to `/api/search`.
+  Themeable via `--ps-*` CSS vars; served by the demo server at `/widget`.
+- Read API now sends CORS (`PRAGMA_CORS_ORIGIN`, default `*`) so the widget can
+  run cross-origin.
+
 ## [0.2.0]
 
 ### Added

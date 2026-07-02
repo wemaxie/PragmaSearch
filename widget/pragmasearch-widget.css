@@ -1,0 +1,66 @@
+/* PragmaSearch drop-in widget. Scoped under .ps-* — override the CSS vars to theme. */
+.ps-root {
+  --ps-bg: #ffffff;
+  --ps-fg: #16181d;
+  --ps-muted: #6b7280;
+  --ps-faint: #9aa1ad;
+  --ps-border: #e4e7ec;
+  --ps-panel: #f7f8fa;
+  --ps-accent: #7c5cff;
+  --ps-accent-2: #6d28d9;
+  --ps-radius: 12px;
+  --ps-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ps-fg);
+  font-family: var(--ps-font);
+  box-sizing: border-box;
+}
+.ps-root *, .ps-root *::before, .ps-root *::after { box-sizing: border-box; }
+
+.ps-searchbar { position: relative; display: flex; align-items: center; gap: 10px;
+  background: var(--ps-bg); border: 1px solid var(--ps-border); border-radius: var(--ps-radius); padding: 2px 12px; }
+.ps-searchbar:focus-within { border-color: var(--ps-accent); box-shadow: 0 0 0 3px rgba(124,92,255,.14); }
+.ps-input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--ps-fg); font: inherit; font-size: 16px; padding: 12px 0; }
+.ps-input::placeholder { color: var(--ps-faint); }
+.ps-icon { flex: none; color: var(--ps-faint); }
+
+.ps-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: var(--ps-bg);
+  border: 1px solid var(--ps-border); border-radius: var(--ps-radius); overflow: hidden; box-shadow: 0 14px 40px rgba(0,0,0,.14); }
+.ps-suggest[hidden] { display: none; }
+.ps-sg { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--ps-panel); }
+.ps-sg:last-child { border-bottom: 0; }
+.ps-sg.ps-active, .ps-sg:hover { background: var(--ps-panel); }
+.ps-sg-thumb { width: 32px; height: 32px; flex: none; border-radius: 6px; object-fit: contain; background: #fff; border: 1px solid var(--ps-border); }
+.ps-sg-title { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ps-layout { display: grid; grid-template-columns: 200px 1fr; gap: 22px; align-items: start; margin-top: 18px; }
+@media (max-width: 680px) { .ps-layout { grid-template-columns: 1fr; } }
+.ps-facets { display: flex; flex-direction: column; gap: 16px; }
+.ps-facets[hidden] { display: none; }
+.ps-fgroup h4 { margin: 0 0 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ps-muted); }
+.ps-fitem { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; color: var(--ps-muted); cursor: pointer; }
+.ps-fitem:hover { color: var(--ps-fg); }
+.ps-fitem input { accent-color: var(--ps-accent); }
+.ps-fitem .ps-fc { margin-left: auto; font-size: 11.5px; color: var(--ps-faint); }
+.ps-clear { font-size: 12px; color: var(--ps-accent-2); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+
+.ps-hits { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ps-hit { display: flex; align-items: center; gap: 12px; background: var(--ps-bg); border: 1px solid var(--ps-border); border-radius: var(--ps-radius); padding: 10px 14px; }
+.ps-hit:hover { border-color: var(--ps-accent); }
+.ps-thumb { width: 44px; height: 44px; flex: none; border-radius: 8px; object-fit: contain; background: #fff; border: 1px solid var(--ps-border); }
+.ps-body { flex: 1; min-width: 0; }
+.ps-title { font-size: 15px; font-weight: 560; }
+.ps-title a { color: inherit; text-decoration: none; }
+.ps-title a:hover { color: var(--ps-accent-2); }
+.ps-title mark { background: rgba(124,92,255,.28); color: inherit; border-radius: 3px; padding: 0 1px; }
+.ps-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.ps-cat { font-size: 11.5px; color: var(--ps-accent-2); border: 1px solid rgba(124,92,255,.25); background: rgba(124,92,255,.06); padding: 1px 8px; border-radius: 999px; }
+.ps-price { font-size: 13px; font-weight: 600; }
+
+.ps-empty { color: var(--ps-faint); text-align: center; padding: 40px 0; }
+.ps-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.ps-pager[hidden] { display: none; }
+.ps-pager .ps-info { font-size: 12.5px; color: var(--ps-muted); }
+.ps-pager button { font-size: 13px; color: var(--ps-fg); background: var(--ps-bg); border: 1px solid var(--ps-border); padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+.ps-pager button:disabled { color: var(--ps-faint); opacity: .5; cursor: default; }
+.ps-poweredby { margin-top: 14px; font-size: 11px; color: var(--ps-faint); text-align: right; }
+.ps-poweredby a { color: var(--ps-faint); }

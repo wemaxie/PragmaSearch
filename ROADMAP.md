@@ -14,11 +14,11 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 ## Toward a real product (prioritized)
 
 **v1 — "Search-UX": the table stakes a catalog adopter hits on day one**
-- [ ] Filtering & faceting (price / category / brand) with facet counts
-- [ ] Pagination / offset
-- [ ] Result highlighting & snippets
-- [ ] Client SDK + framework adapters (React / Next / Vue) and a drop-in search widget
-- [ ] Incremental index updates (add / update / delete without a full re-embed)
+- [x] Filtering & faceting (price / category / brand) with facet counts
+- [x] Pagination / offset
+- [x] Result highlighting (stem-aware `<mark>`; snippet windows still TODO)
+- [x] Drop-in search widget (dependency-free, themeable, faceted) — [docs](docs/widget.md). Full React/Vue component adapters still TODO (a `useEffect` wrapper is documented).
+- [x] Incremental index updates (add / update / delete without a full re-embed)
 
 **Should-have (relevance tuning + production readiness)**
 - [ ] Configurable searchable attributes & field weights

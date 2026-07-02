@@ -58,7 +58,8 @@ replace your hosted-search bill with $0.
 | **Semantic (meaning) search** | paid add-on | **built in** |
 | **Typo tolerance** | ✅ | ✅ |
 | **Filtering · faceting · pagination** | ✅ | ✅ |
-| **Drop-in UI widget · highlighting** | ✅ | 🚧 [on the roadmap](ROADMAP.md) |
+| **Result highlighting** | ✅ | ✅ |
+| **Drop-in UI widget** | ✅ | ✅ [docs](docs/widget.md) |
 
 > Built for small-to-mid catalogs (≤ ~50k items). For million-SKU real-time catalogs with
 > merchandising and analytics, the hosted platforms still win — see the [roadmap](ROADMAP.md).
@@ -129,9 +130,10 @@ model is recorded in the index, so query and document encoders always match. See
 ## 🗺️ Roadmap
 
 Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, pagination**,
+**result highlighting**, a **[drop-in search widget](docs/widget.md)** (dependency-free, themeable),
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
-multilingual, CLI + API + demo server. Next: result highlighting and a drop-in search widget
-(React/Vue) — see **[ROADMAP.md](ROADMAP.md)**.
+multilingual, CLI + API + demo server. Next: searchable-attribute weights, synonyms, ranking rules,
+and a full React component adapter — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community
 

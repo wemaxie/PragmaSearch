@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PragmaSearch widget — example</title>
+    <link rel="stylesheet" href="pragmasearch-widget.css" />
+    <style>
+      body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #16181d; }
+      h1 { font-size: 22px; }
+      p { color: #6b7280; }
+      /* Theme the widget by overriding its CSS vars: */
+      /* .ps-root { --ps-accent: #e11d48; } */
+    </style>
+  </head>
+  <body>
+    <h1>Your store — search</h1>
+    <p>The box below is the drop-in PragmaSearch widget, talking to <code>/api/search</code>.</p>
+
+    <div id="search"></div>
+
+    <script src="pragmasearch-widget.js"></script>
+    <script>
+      PragmaSearch.create({
+        container: "#search",
+        endpoint: "", // same origin here; on your site use "https://search.yourshop.com"
+        facets: ["category", "brand"],
+        hitsPerPage: 8,
+        placeholder: "Search products by meaning…",
+      });
+    </script>
+  </body>
+</html>

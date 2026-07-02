@@ -38,7 +38,10 @@ const INDEX_FILE = fromEnv(
 );
 const PRODUCTS_FILE = fromEnv(process.env.PRAGMA_PRODUCTS, join(ROOT, "data", "products.json"));
 const HTML_FILE = join(__dirname, "index.html");
+const WIDGET_DIR = join(ROOT, "widget");
 const PORT = Number(process.env.PORT ?? 5173);
+// Allow the drop-in widget to call the read API cross-origin (it runs on the shop's own site).
+const CORS_ORIGIN = process.env.PRAGMA_CORS_ORIGIN || "*";
 
 // Input + abuse limits for the public-facing demo.
 const MAX_QUERY_CHARS = 200; // queries longer than this are truncated (DoS guard)
@@ -114,6 +117,7 @@ function sendJson(
 ): void {
   send(req, res, code, "application/json; charset=utf-8", JSON.stringify(body), {
     "cache-control": cacheControl,
+    "access-control-allow-origin": CORS_ORIGIN,
   });
 }
 
@@ -204,6 +208,25 @@ async function main(): Promise<void> {
         return;
       }
 
+      // Serve the drop-in widget (JS/CSS at their real filenames) + an example page at /widget.
+      {
+        const widgetFiles: Record<string, [string, string]> = {
+          "/pragmasearch-widget.js": ["pragmasearch-widget.js", "application/javascript; charset=utf-8"],
+          "/pragmasearch-widget.css": ["pragmasearch-widget.css", "text/css; charset=utf-8"],
+          "/widget": ["demo.html", "text/html; charset=utf-8"],
+        };
+        const entry = widgetFiles[url.pathname];
+        if (req.method === "GET" && entry) {
+          try {
+            const body = await readFile(join(WIDGET_DIR, entry[0]), "utf8");
+            send(req, res, 200, entry[1], body, { "access-control-allow-origin": CORS_ORIGIN });
+          } catch {
+            send(req, res, 404, "text/plain; charset=utf-8", "not found");
+          }
+          return;
+        }
+      }
+
       if (req.method === "GET" && url.pathname === "/api/meta") {
         sendJson(req, res, 200, { meta: index.meta, chips: CHIPS });
         return;
@@ -212,6 +235,7 @@ async function main(): Promise<void> {
       if (req.method === "GET" && url.pathname === "/api/titles") {
         send(req, res, 200, "application/json; charset=utf-8", titlesBody, {
           "cache-control": "public, max-age=3600",
+          "access-control-allow-origin": CORS_ORIGIN,
         });
         return;
       }
