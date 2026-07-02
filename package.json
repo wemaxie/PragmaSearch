@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/engine.test.ts test/analytics.test.ts test/react-core.test.ts test/react.test.tsx test/vue.test.ts",
+    "test": "node --import tsx --test test/engine.test.ts test/analytics.test.ts test/server.test.ts test/react-core.test.ts test/react.test.tsx test/vue.test.ts",
     "index": "tsx src/cli.ts index",
     "search": "tsx src/cli.ts search",
     "demo": "tsx demo/server.ts",

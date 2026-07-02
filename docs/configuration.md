@@ -260,6 +260,36 @@ On the demo server, set `PRAGMA_SEARCH_SECRET` to enable `&token=`; the token's 
 AND-ed into the query and a bad/expired token returns `401`. The payload is signed, not
 encrypted — don't put secrets in the filter. `exp` is a Unix time in **seconds** (optional).
 
+## Production server
+
+`demo/server.ts` is a reference with a bundled demo UI. For production, run the hardened,
+dependency-free **JSON API server** that ships in the package — it has the same security
+posture (input clamp, per-IP rate limiting, restrictive headers, gzip, no error leakage) and
+serves `/api/search` + `/api/meta`, token-gated writes, and (optional) analytics. Put a UI in
+front of it with the [widget](widget.md) or the [React](react.md)/[Vue](vue.md) adapters.
+
+```bash
+PRAGMA_ADMIN_TOKEN=… PRAGMA_SEARCH_SECRET=… npx pragmasearch serve pragmasearch-index.json --port 8080
+```
+
+Or embed it:
+
+```ts
+import { loadIndex, createSearcher, createSearchServer, createAnalytics } from "pragmasearch";
+
+const searcher = await createSearcher(await loadIndex("pragmasearch-index.json"));
+createSearchServer(searcher, {
+  corsOrigin: "https://myshop.com",
+  adminToken: process.env.ADMIN_TOKEN,     // enables POST /api/patch|upsert|remove + analytics
+  searchSecret: process.env.SEARCH_SECRET, // enables signed &token= forced filters
+  analytics: createAnalytics(),            // enables GET /api/analytics
+  rateLimit: 60,                            // per IP / 10s (0 disables)
+}).listen(8080);
+```
+
+Both `serve` and `createSearchServer` read the same env vars below (`PORT`,
+`PRAGMA_ADMIN_TOKEN`, `PRAGMA_SEARCH_SECRET`, `PRAGMA_CORS_ORIGIN`, `PRAGMA_ANALYTICS`).
+
 ## Demo server environment variables
 
 | Variable | Default | Description |

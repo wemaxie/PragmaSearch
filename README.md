@@ -139,8 +139,10 @@ Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, p
 **[ranking rules](docs/configuration.md#ranking-rules--merchandising)** (boost / bury / pin),
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
 **[search analytics](docs/configuration.md#analytics)** (top + zero-result queries, latency),
-multilingual, CLI + API + demo server. Next: a persisted keyword index and a compact/quantized
-index format — see **[ROADMAP.md](ROADMAP.md)**.
+**custom ranking**, a **[compact int8 index](docs/configuration.md#indexing)**, **[signed multi-tenant tokens](docs/configuration.md#multi-tenant-search-tokens)**,
+**[language-aware tokenization](docs/configuration.md#non-english-catalogs-tokenizer)**, and a hardened **[production server](docs/configuration.md#production-server)**
+(`pragmasearch serve`) — CLI + programmatic API + demo. Next: query-rule triggers, snippet
+windows, and a relevance benchmark — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community
 

@@ -8,6 +8,12 @@ change between minor versions — pin the version you depend on.
 ## [Unreleased]
 
 ### Added
+- **Production server** — `createSearchServer(searcher, opts)` and a
+  `pragmasearch serve` CLI command ship a hardened, dependency-free JSON API server
+  (input clamp, per-IP rate limiting, restrictive headers, gzip, no error leakage):
+  `GET /api/search` + `/api/meta`, token-gated `POST /api/patch|upsert|remove`,
+  optional signed-token forced filters, and optional `/api/analytics`. Turns the
+  library into a one-command deployable server. Exposes `SearchServerOptions`.
 - **Vue adapter** (`pragmasearch/vue`) — Vue 3 components (`<PragmaSearch>`,
   `<SearchBox>`, `<RefinementList>`, `<Hits>` with a `#hit` slot, `<Pagination>`,
   `<ClearRefinements>`, `<PoweredBy>`) and a `usePragmaSearch` composable. Built

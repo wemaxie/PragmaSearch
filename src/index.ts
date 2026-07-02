@@ -70,6 +70,12 @@ export {
 } from "./tokens.js";
 
 export {
+  createSearchServer,
+  type SearchServer,
+  type SearchServerOptions,
+} from "./server.js";
+
+export {
   createAnalytics,
   normalizeQuery,
   type Analytics,

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { performance } from "node:perf_hooks";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, writeFile, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { buildIndex } from "./index-builder.js";
 import { createSearcher } from "./search.js";
+import { createSearchServer } from "./server.js";
+import { createAnalytics, type AnalyticsState } from "./analytics.js";
 import { signSearchToken } from "./tokens.js";
 import { readProducts, saveIndex, loadIndex } from "./storage.js";
 import type { SynonymOptions } from "./synonyms.js";
@@ -78,7 +81,12 @@ PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 Usage:
   pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>] [--compact]
   pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>] [--synonyms <file.json>] [--rules <file.json>]
+  pragmasearch serve [<index>] [--port <n>] [--tokenizer <english|minimal>]
   pragmasearch token --secret <s> [--filter '<json>'] [--exp <seconds>]
+
+  serve: a hardened JSON API server (GET /api/search, /api/meta; token-gated writes +
+         analytics). Env: PORT, PRAGMA_ADMIN_TOKEN, PRAGMA_SEARCH_SECRET,
+         PRAGMA_CORS_ORIGIN, PRAGMA_ANALYTICS. Put a UI in front with the widget / adapters.
 
   --searchable  comma-separated fields with optional ^weight, e.g.
                 "title^3,description,brand^2,tags" (default: title^2,description,category,tags)
@@ -190,6 +198,56 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   console.log("");
 }
 
+async function cmdServe(args: ParsedArgs): Promise<void> {
+  const indexFile = args.positionals[0] ?? strFlag(args.flags, "index") ?? DEFAULT_INDEX_FILE;
+  const port = intFlag(args.flags, "port", Number(process.env.PORT ?? 5173));
+  const tokenizer = strFlag(args.flags, "tokenizer");
+
+  console.log(`Loading model + index (${indexFile}) ...`);
+  const index = await loadIndex(indexFile);
+  const searcher = await createSearcher(index, { tokenizer });
+  await searcher.search("warm up", 1); // warm the model
+
+  // Optional analytics, persisted to PRAGMA_ANALYTICS (loaded on start, saved periodically).
+  const analyticsFile = process.env.PRAGMA_ANALYTICS;
+  let analytics: ReturnType<typeof createAnalytics> | undefined;
+  if (analyticsFile) {
+    let seed: AnalyticsState | undefined;
+    if (existsSync(analyticsFile)) {
+      try {
+        seed = JSON.parse(await readFile(analyticsFile, "utf8")) as AnalyticsState;
+      } catch {
+        /* ignore a bad file */
+      }
+    }
+    analytics = createAnalytics({}, seed);
+    const persist = async (): Promise<void> => {
+      try {
+        await writeFile(analyticsFile, JSON.stringify(analytics!.toJSON()));
+      } catch {
+        /* ignore */
+      }
+    };
+    const timer = setInterval(() => void persist(), 15_000);
+    timer.unref?.();
+    for (const sig of ["SIGINT", "SIGTERM"] as const) {
+      process.on(sig, () => void persist().finally(() => process.exit(0)));
+    }
+  }
+
+  const { listen } = createSearchServer(searcher, {
+    adminToken: process.env.PRAGMA_ADMIN_TOKEN,
+    searchSecret: process.env.PRAGMA_SEARCH_SECRET,
+    corsOrigin: process.env.PRAGMA_CORS_ORIGIN,
+    analytics,
+    onWrite: () => saveIndex(indexFile, index),
+  });
+  listen(port, () => {
+    console.log(`\n  PragmaSearch API → http://localhost:${port}  (${index.meta.count} items, model ${index.meta.model})`);
+    if (!process.env.PRAGMA_ADMIN_TOKEN) console.log("  (writes + analytics disabled — set PRAGMA_ADMIN_TOKEN to enable)");
+  });
+}
+
 function cmdToken(args: ParsedArgs): void {
   const secret = strFlag(args.flags, "secret") ?? process.env.PRAGMA_SEARCH_SECRET;
   if (!secret) {
@@ -215,6 +273,9 @@ async function main(): Promise<void> {
   const args = parseArgs(rest);
 
   switch (cmd) {
+    case "serve":
+      await cmdServe(args);
+      break;
     case "token":
       cmdToken(args);
       break;
