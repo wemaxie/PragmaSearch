@@ -26,7 +26,7 @@ import { resolveSearchable, fieldText, productText, DEFAULT_SEARCHABLE } from ".
 import { buildSynonyms } from "../src/synonyms.js";
 import { applyRankingRules } from "../src/ranking.js";
 import { signSearchToken, verifySearchToken, mergeForcedFilter } from "../src/tokens.js";
-import { highlightProduct, highlightField } from "../src/highlight.js";
+import { highlightProduct, highlightField, snippetField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product, SearchSignal } from "../src/types.js";
 
@@ -330,6 +330,27 @@ test("highlightField wraps stem-matching words and escapes HTML", () => {
   assert.match(out, /<mark>Headphones<\/mark>/); // plural matches "headphone"
   assert.match(out, /&lt;b&gt;/); // raw HTML in the source is escaped
   assert.ok(!out.includes("<b>"));
+});
+
+test("snippetField windows around the first match with ellipsis; short text stays full", () => {
+  const long = "word ".repeat(40) + "the mechanical keyboard is great " + "word ".repeat(40);
+  const snip = snippetField(long.trim(), new Set(["keyboard"]), 10);
+  assert.match(snip, /^… /); // leading ellipsis (match isn't at the start)
+  assert.match(snip, / …$/); // trailing ellipsis
+  assert.match(snip, /<mark>keyboard<\/mark>/);
+  assert.ok(snip.split(/\s+/).length < 20); // windowed, not the whole 80+ word text
+
+  // short text → full highlight, no ellipsis
+  const full = snippetField("Mechanical Keyboard", new Set(["keyboard"]), 10);
+  assert.equal(full, "Mechanical <mark>Keyboard</mark>");
+});
+
+test("highlightProduct snippet option returns windowed excerpts", () => {
+  const p: Product = { id: 1, title: "X", description: "alpha ".repeat(30) + "target here " + "beta ".repeat(30) };
+  const h = highlightProduct(p, "target", { fields: ["description"], snippet: 8 });
+  assert.match(h.description, /<mark>target<\/mark>/);
+  assert.match(h.description, /…/);
+  assert.ok(h.description.length < (p.description as string).length); // shorter than the full field
 });
 
 test("highlightProduct highlights requested fields; empty query → none", () => {

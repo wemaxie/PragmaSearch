@@ -107,6 +107,11 @@ interface SearchResponse {
 
 `signals` on each hit shows *why* it matched: `["vector"]`, `["keyword"]`, `["exact"]`, `["pinned"]`, or a combination.
 
+Highlighting: pass `highlight: true` (or `{ fields, pre, post }`) to get `<mark>`-wrapped,
+HTML-safe matches per field. For long descriptions, `highlight: { snippet: 20 }` (HTTP:
+`&snippet=20`) returns a ~20-word windowed excerpt around the first match with `…` ellipsis
+(Algolia's `_snippetResult`). `snippetField` / `highlightField` are exported.
+
 `maxScore` is the best semantic match's cosine similarity (0..1) for `vector`/`hybrid` queries.
 Because vector search always returns the *nearest* items, a low `maxScore` (e.g. < ~0.35 for
 MiniLM) means "nothing really matched" even though `total` is non-zero — use it for a relevance

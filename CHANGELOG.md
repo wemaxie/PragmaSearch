@@ -7,6 +7,11 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **Snippet windows** in highlighting — `highlight: { snippet: N }` (HTTP `&snippet=N`)
+  returns a ~N-word excerpt around the first match with `…` ellipsis (Algolia's
+  `_snippetResult`), instead of highlighting the whole field. Exposes `snippetField`.
+
 ## [0.7.0] - 2026-07-02
 
 ### Added

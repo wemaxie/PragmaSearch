@@ -102,6 +102,7 @@ export {
 export {
   highlightProduct,
   highlightField,
+  snippetField,
   type HighlightOptions,
 } from "./highlight.js";
 
