@@ -1,4 +1,4 @@
-import { tokenize, type SynonymExpander } from "./hybrid.js";
+import { tokenize, type SynonymExpander, type Tokenizer } from "./hybrid.js";
 
 /**
  * Synonyms — query-time expansion for the keyword (BM25) layer.
@@ -54,21 +54,24 @@ function windowMatch(hay: string[], needle: string[]): boolean {
  * can skip the expansion path entirely. Phrases are tokenized/stemmed the same way
  * documents are, so "laptops" and "laptop" unify.
  */
-export function buildSynonyms(opts: SynonymOptions | undefined): SynonymExpander | undefined {
+export function buildSynonyms(
+  opts: SynonymOptions | undefined,
+  tokenizer: Tokenizer = tokenize,
+): SynonymExpander | undefined {
   if (!opts) return undefined;
   const weight = opts.weight ?? DEFAULT_SYNONYM_WEIGHT;
   const rules: Rule[] = [];
 
   for (const group of opts.groups ?? []) {
-    const phrases = group.map((p) => tokenize(p)).filter((a) => a.length > 0);
+    const phrases = group.map((p) => tokenizer(p)).filter((a) => a.length > 0);
     for (let i = 0; i < phrases.length; i++) {
       const expansions = phrases.filter((_, j) => j !== i);
       if (expansions.length) rules.push({ phrase: phrases[i], expansions });
     }
   }
   for (const ow of opts.oneWay ?? []) {
-    const phrase = tokenize(ow.from ?? "");
-    const expansions = (ow.to ?? []).map((p) => tokenize(p)).filter((a) => a.length > 0);
+    const phrase = tokenizer(ow.from ?? "");
+    const expansions = (ow.to ?? []).map((p) => tokenizer(p)).filter((a) => a.length > 0);
     if (phrase.length && expansions.length) rules.push({ phrase, expansions });
   }
 

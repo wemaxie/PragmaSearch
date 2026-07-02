@@ -12,16 +12,16 @@ import { DEFAULT_SEARCHABLE, fieldText } from "./searchable.js";
  * compact BM25 over an in-memory inverted index is more than enough.
  */
 
-// A small, conservative stopword list. We keep meaning-bearing words like
+// A small, conservative English stopword list. We keep meaning-bearing words like
 // "home", "work", "office" — only drop true glue words.
-const STOPWORDS = new Set([
+const ENGLISH_STOPWORDS = [
   "a", "an", "the", "of", "for", "and", "or", "to", "in", "on", "at", "with",
   "by", "is", "are", "be", "it", "this", "that", "as", "from", "your", "you",
   "i", "my", "me", "some", "any", "something", "anything", "want", "need",
-]);
+];
 
 /** Light stemmer: normalize common English plurals so "headphones" matches "headphone". */
-function stem(t: string): string {
+function englishStem(t: string): string {
   if (t.length > 4 && t.endsWith("ies")) return t.slice(0, -3) + "y"; // batteries -> battery
   // Strip a plural 's', but skip common singular endings so we don't mangle
   // analysis/bias/status/focus/atlas/wireless into nonsense.
@@ -31,14 +31,53 @@ function stem(t: string): string {
   return t;
 }
 
-/** Tokenize: lowercase, split on non-alphanumeric, drop stopwords, stem. Digits kept (e.g. "4070"). */
-export function tokenize(text: string): string[] {
-  const out: string[] = [];
-  for (const raw of text.toLowerCase().split(/[^a-z0-9]+/)) {
-    if (!raw || STOPWORDS.has(raw)) continue;
-    out.push(stem(raw));
-  }
-  return out;
+// Unicode-aware split: keep letters/digits of ANY script (é, ü, ñ, Cyrillic, CJK…),
+// split on everything else. Digits are kept (e.g. "4070").
+const SPLIT = /[^\p{L}\p{N}]+/u;
+
+/** A tokenizer: text → normalized tokens. */
+export type Tokenizer = (text: string) => string[];
+
+export interface TokenizerOptions {
+  /** Words dropped before stemming. Default: a small English glue-word list. */
+  stopwords?: Iterable<string>;
+  /** Per-token normalizer. Default: light English plural stemmer. Identity to disable. */
+  stem?: (token: string) => string;
+}
+
+/** Build a tokenizer: lowercase, Unicode-split, drop stopwords, stem. */
+export function makeTokenizer(opts: TokenizerOptions = {}): Tokenizer {
+  const stop = new Set(opts.stopwords ?? ENGLISH_STOPWORDS);
+  const stemFn = opts.stem ?? englishStem;
+  return (text: string): string[] => {
+    const out: string[] = [];
+    for (const raw of text.toLowerCase().split(SPLIT)) {
+      if (!raw || stop.has(raw)) continue;
+      out.push(stemFn(raw));
+    }
+    return out;
+  };
+}
+
+/** The default tokenizer — English stopwords + light plural stemmer. */
+export const tokenize: Tokenizer = makeTokenizer();
+
+/**
+ * Named tokenizer presets. `minimal` = Unicode split only (no stopwords, no
+ * stemming) — the safe choice for non-English catalogs, where the English stemmer
+ * would mangle words. Add your own stopwords/stemmer via {@link makeTokenizer}.
+ */
+export const TOKENIZER_PRESETS: Record<string, TokenizerOptions> = {
+  english: {},
+  minimal: { stopwords: [], stem: (t) => t },
+};
+
+/** Resolve a tokenizer from a preset name, options, or a function (default English). */
+export function resolveTokenizer(t?: string | TokenizerOptions | Tokenizer): Tokenizer {
+  if (!t) return tokenize;
+  if (typeof t === "function") return t;
+  if (typeof t === "string") return makeTokenizer(TOKENIZER_PRESETS[t] ?? {});
+  return makeTokenizer(t);
 }
 
 const K1 = 1.5;
@@ -139,6 +178,7 @@ export interface KeywordIndex {
 export function buildKeywordIndex(
   items: IndexItem[],
   attrs: ResolvedAttribute[] = DEFAULT_SEARCHABLE,
+  tok: Tokenizer = tokenize,
 ): KeywordIndex {
   // postings: term -> (docId -> weighted term frequency)
   const postings = new Map<string, Map<string, number>>();
@@ -158,7 +198,7 @@ export function buildKeywordIndex(
   for (const it of items) {
     const id = String(it.id);
     for (const { field, weight } of attrs) {
-      addTokens(id, tokenize(fieldText(it.payload, field)), weight);
+      addTokens(id, tok(fieldText(it.payload, field)), weight);
     }
   }
 
@@ -197,7 +237,7 @@ export function buildKeywordIndex(
     synonyms?: SynonymExpander,
   ): KeywordHit[] {
     const typo = resolveTypo(typoOpt);
-    const terms = tokenize(query);
+    const terms = tok(query);
     if (terms.length === 0 || N === 0) return [];
     // Synonym expansion widens the query to equivalent terms (base terms at weight
     // 1, synonyms lower). Without it, each occurrence is searched at weight 1.

@@ -104,12 +104,17 @@ export {
   rrfFuse,
   exactTitleMatches,
   tokenize,
+  makeTokenizer,
+  resolveTokenizer,
+  TOKENIZER_PRESETS,
   resolveTypo,
   DEFAULT_TYPO,
   type KeywordIndex,
   type KeywordHit,
   type TypoOptions,
   type SynonymExpander,
+  type Tokenizer,
+  type TokenizerOptions,
 } from "./hybrid.js";
 
 export {

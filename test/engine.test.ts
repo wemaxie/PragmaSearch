@@ -10,6 +10,9 @@ import { join } from "node:path";
 
 import {
   tokenize,
+  makeTokenizer,
+  resolveTokenizer,
+  TOKENIZER_PRESETS,
   buildKeywordIndex,
   rrfFuse,
   exactTitleMatches,
@@ -44,6 +47,31 @@ test("stemmer does not mangle singular -s words", () => {
   assert.deepEqual(tokenize("wireless"), ["wireless"]);
   assert.deepEqual(tokenize("status"), ["status"]);
   assert.deepEqual(tokenize("cards"), ["card"]); // genuine plural still stemmed
+});
+
+// ---------- tokenizer (language-aware) ----------
+test("default tokenizer keeps non-ASCII letters (Unicode split, not [a-z] only)", () => {
+  assert.deepEqual(tokenize("Café Müller"), ["café", "müller"]); // previously mangled to ["caf"]
+  assert.deepEqual(tokenize("Ноутбук ASUS"), ["ноутбук", "asus"]); // Cyrillic survives
+});
+
+test("minimal preset: no stopwords, no stemming (safe for any language)", () => {
+  const min = makeTokenizer(TOKENIZER_PRESETS.minimal);
+  assert.deepEqual(min("The Cars and Trucks"), ["the", "cars", "and", "trucks"]);
+});
+
+test("resolveTokenizer handles preset names, options, and functions", () => {
+  assert.deepEqual(resolveTokenizer("minimal")("cars"), ["cars"]); // no stemming
+  assert.deepEqual(resolveTokenizer()("cars"), ["car"]); // default English stems
+  const custom = resolveTokenizer({ stopwords: ["foo"], stem: (t) => t.toUpperCase() });
+  assert.deepEqual(custom("foo bar"), ["BAR"]);
+});
+
+test("buildKeywordIndex honors a custom tokenizer (minimal = no plural stemming)", () => {
+  const items = [item("1", "Cars")];
+  const min = makeTokenizer(TOKENIZER_PRESETS.minimal);
+  assert.equal(buildKeywordIndex(items, undefined, min).search("car", 5, false).length, 0); // "car" != "cars"
+  assert.equal(buildKeywordIndex(items).search("car", 5, false)[0]?.id, "1"); // English stems cars→car
 });
 
 // ---------- BM25 keyword layer ----------

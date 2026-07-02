@@ -205,9 +205,11 @@ async function main(): Promise<void> {
   const index = await getIndex();
   const synonyms = await loadJsonEnv<SynonymOptions>("PRAGMA_SYNONYMS");
   const rankingRules = await loadJsonEnv<RankingRules>("PRAGMA_RANKING");
+  const tokenizer = process.env.PRAGMA_TOKENIZER; // preset name, e.g. "minimal" for non-English
   if (synonyms) console.log("  synonyms enabled (PRAGMA_SYNONYMS).");
   if (rankingRules) console.log("  ranking rules enabled (PRAGMA_RANKING).");
-  const searcher: Searcher = await createSearcher(index, { synonyms, rankingRules });
+  if (tokenizer) console.log(`  tokenizer: ${tokenizer} (PRAGMA_TOKENIZER).`);
+  const searcher: Searcher = await createSearcher(index, { synonyms, rankingRules, tokenizer });
 
   // Search analytics (top / zero-result queries, latency). Always recorded in
   // memory; loaded from + persisted to PRAGMA_ANALYTICS when that file is set.

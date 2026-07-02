@@ -163,8 +163,9 @@ async function cmdSearch(args: ParsedArgs): Promise<void> {
   // --rules <file.json>: { boost?: [...], bury?: [...], pin?: [...] }
   const rankingRules = await readJsonFlag<RankingRules>(args.flags, "rules");
 
+  const tokenizer = strFlag(args.flags, "tokenizer"); // "english" | "minimal"
   const index = await loadIndex(indexFile);
-  const searcher = await createSearcher(index, { synonyms, rankingRules });
+  const searcher = await createSearcher(index, { synonyms, rankingRules, tokenizer });
 
   const t0 = performance.now();
   const { hits, total } = await searcher.search(query, k, { mode, typo });

@@ -7,6 +7,15 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **Language-aware tokenizer** — the keyword layer now splits on Unicode letters of
+  any script (Cyrillic, CJK, accented Latin no longer get mangled), and the
+  tokenizer is pluggable: `createSearcher(index, { tokenizer })` accepts a preset
+  (`"english"` default, `"minimal"` for non-English), `{ stopwords, stem }`, or a
+  function — applied consistently to BM25, queries, synonyms and highlighting. CLI
+  `--tokenizer`, demo `PRAGMA_TOKENIZER`. Exposes `makeTokenizer` /
+  `resolveTokenizer` / `TOKENIZER_PRESETS`.
+
 ## [0.6.0] - 2026-07-02
 
 ### Added

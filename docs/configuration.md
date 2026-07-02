@@ -270,6 +270,7 @@ encrypted — don't put secrets in the filter. `exp` is a Unix time in **seconds
 | `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
 | `PRAGMA_SYNONYMS` | — | Path to a synonyms JSON file (see [Synonyms](#synonyms)) |
 | `PRAGMA_RANKING` | — | Path to a ranking-rules JSON file (see [Ranking rules](#ranking-rules--merchandising)) |
+| `PRAGMA_TOKENIZER` | `english` | Keyword tokenizer preset (`english` / `minimal`); see [Non-English catalogs](#non-english-catalogs-tokenizer) |
 | `PRAGMA_ANALYTICS` | — | Path to persist search analytics (see [Analytics](#analytics)); in-memory only if unset |
 | `PRAGMA_ZERO_FLOOR` | `0.35` | Top-similarity threshold below which a semantic query counts as zero-result |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
@@ -336,3 +337,19 @@ The model is recorded in the index; pick it at index time with `--model`.
 
 Query/passage prefixes (needed by e5 and bge) are applied automatically based on the model.
 All three are 384-dim, so switching models only requires re-indexing — the store layout is unchanged.
+
+### Non-English catalogs (tokenizer)
+
+The vector layer is multilingual (via the e5 model), but the **keyword (BM25) layer** has a
+tokenizer with English stopwords + a light plural stemmer. Words of any script survive
+tokenization (Unicode-aware split), but the English stemmer/stopwords are wrong for other
+languages. For a non-English catalog, use the `minimal` tokenizer (Unicode split only, no
+stopwords/stemming) — or plug your own:
+
+```ts
+// preset, options, or a function — applies to BM25, queries, synonyms and highlighting
+createSearcher(index, { tokenizer: "minimal" });
+createSearcher(index, { tokenizer: { stopwords: ["der", "die", "das"], stem: myGermanStemmer } });
+```
+
+CLI: `pragmasearch search "…" --tokenizer minimal`. Demo server: `PRAGMA_TOKENIZER=minimal`.

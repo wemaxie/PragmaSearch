@@ -1,4 +1,4 @@
-import { tokenize } from "./hybrid.js";
+import { tokenize, type Tokenizer } from "./hybrid.js";
 import type { Product } from "./types.js";
 
 /**
@@ -37,9 +37,10 @@ export function highlightField(
   queryStems: Set<string>,
   pre = "<mark>",
   post = "</mark>",
+  tok: Tokenizer = tokenize,
 ): string {
   return escapeHtml(text).replace(/[\p{L}\p{N}]+/gu, (word) => {
-    const stem = tokenize(word)[0];
+    const stem = tok(word)[0];
     return stem && queryStems.has(stem) ? pre + word + post : word;
   });
 }
@@ -49,16 +50,17 @@ export function highlightProduct(
   product: Product,
   query: string,
   opts: HighlightOptions = {},
+  tok: Tokenizer = tokenize,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const queryStems = new Set(tokenize(query));
+  const queryStems = new Set(tok(query));
   if (!queryStems.size) return out;
   const fields = opts.fields ?? ["title", "description"];
   const pre = opts.pre ?? "<mark>";
   const post = opts.post ?? "</mark>";
   for (const field of fields) {
     const v = product[field];
-    if (typeof v === "string" && v) out[field] = highlightField(v, queryStems, pre, post);
+    if (typeof v === "string" && v) out[field] = highlightField(v, queryStems, pre, post, tok);
   }
   return out;
 }

@@ -28,7 +28,7 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [ ] Persist the keyword index instead of rebuilding on cold start
 - [x] Signed multi-tenant search tokens — HMAC-signed forced filters ([docs](docs/configuration.md#multi-tenant-search-tokens))
 - [ ] Server-mode API auth + CORS config (rate limiting + write-token + search-token already present)
-- [ ] Language-aware tokenization (stemmer/stopwords per language)
+- [x] Language-aware tokenization — Unicode-aware split + pluggable stopwords/stemmer (`tokenizer` option, `minimal` preset) ([docs](docs/configuration.md#non-english-catalogs-tokenizer))
 - [x] Compact / quantized index format (gzip + int8 vectors) — CLI `--compact` / `saveIndex({compact})`, ~8× smaller, same ranking
 
 **Nice-to-have**

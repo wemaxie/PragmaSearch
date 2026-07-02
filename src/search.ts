@@ -4,9 +4,12 @@ import {
   buildKeywordIndex,
   rrfFuse,
   exactTitleMatches,
+  resolveTokenizer,
   type KeywordIndex,
   type TypoOptions,
   type SynonymExpander,
+  type Tokenizer,
+  type TokenizerOptions,
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
 import { buildSynonyms, type SynonymOptions } from "./synonyms.js";
@@ -133,6 +136,12 @@ export interface SearcherOptions {
    * per-query `SearchOptions.rankingRules` overrides this. See {@link RankingRules}.
    */
   rankingRules?: RankingRules;
+  /**
+   * Tokenizer for the keyword layer: a preset name (`"english"` default,
+   * `"minimal"` for non-English), `{ stopwords, stem }`, or a function. Applies to
+   * BM25 indexing, query parsing, synonyms and highlighting consistently.
+   */
+  tokenizer?: string | TokenizerOptions | Tokenizer;
 }
 
 /**
@@ -173,18 +182,20 @@ export async function createSearcher(
   const attrs = resolveSearchable(meta.searchableAttributes);
   // Field the exact-match boost targets: the highest-weight searchable field.
   const primaryField = [...attrs].sort((a, b) => b.weight - a.weight)[0]?.field ?? "title";
+  // Tokenizer for the keyword layer (English default; "minimal" or custom for other languages).
+  const tok = resolveTokenizer(opts.tokenizer);
   // Query-expansion synonyms for the keyword layer (undefined = disabled, zero cost).
-  const synonyms: SynonymExpander | undefined = buildSynonyms(opts.synonyms);
+  const synonyms: SynonymExpander | undefined = buildSynonyms(opts.synonyms, tok);
   // Default merchandising rules (a per-query rule set overrides this).
   const defaultRankingRules = opts.rankingRules;
 
   // Reassigned on incremental add/remove (text changes invalidate the keyword index).
-  let keyword = buildKeywordIndex(index.items, attrs);
+  let keyword = buildKeywordIndex(index.items, attrs, tok);
   let byId = new Map<string, IndexItem>(
     index.items.map((it) => [String(it.id), it]),
   );
   const rebuildDerived = (): void => {
-    keyword = buildKeywordIndex(index.items, attrs);
+    keyword = buildKeywordIndex(index.items, attrs, tok);
     byId = new Map(index.items.map((it) => [String(it.id), it]));
   };
 
@@ -291,7 +302,7 @@ export async function createSearcher(
         product: item.payload,
         signals: r.signals,
       };
-      if (hl && q) hit.highlights = highlightProduct(item.payload, q, hlOpts);
+      if (hl && q) hit.highlights = highlightProduct(item.payload, q, hlOpts, tok);
       return hit;
     });
 
