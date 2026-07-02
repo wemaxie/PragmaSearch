@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { gzipSync } from "node:zlib";
+import { timingSafeEqual } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import type { Searcher } from "./search.js";
 import { verifySearchToken, mergeForcedFilter } from "./tokens.js";
@@ -36,6 +37,12 @@ export interface SearchServerOptions {
   analytics?: Analytics;
   /** Top-similarity below which a vector/hybrid query counts as zero-result. Default 0.35. */
   zeroFloor?: number;
+  /**
+   * Trust the client `X-Forwarded-For` header for rate-limit keying. Enable ONLY
+   * behind a proxy that overwrites it (Railway/Render/nginx); otherwise it's
+   * attacker-controlled and defeats the limit. Default `false` (key on the socket).
+   */
+  trustProxy?: boolean;
   /** Called after a successful write (e.g. to persist the index / analytics). */
   onWrite?: () => void | Promise<void>;
 }
@@ -55,6 +62,13 @@ const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 };
 
+/** Constant-time string compare for secrets (the admin bearer token), like tokens.ts does for HMACs. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 /** Build a hardened search server around a {@link Searcher}. Does not start listening unless you call `listen`. */
 export function createSearchServer(searcher: Searcher, opts: SearchServerOptions = {}): SearchServer {
   const CORS = opts.corsOrigin ?? "*";
@@ -66,6 +80,7 @@ export function createSearchServer(searcher: Searcher, opts: SearchServerOptions
   const SECRET = opts.searchSecret;
   const analytics = opts.analytics;
   const ZERO_FLOOR = opts.zeroFloor ?? 0.35;
+  const TRUST_PROXY = opts.trustProxy ?? false;
 
   function send(req: IncomingMessage, res: ServerResponse, code: number, type: string, body: string | Buffer, extra: Record<string, string> = {}): void {
     const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
@@ -87,12 +102,19 @@ export function createSearchServer(searcher: Searcher, opts: SearchServerOptions
   const buckets = new Map<string, { tokens: number; reset: number }>();
   function rateLimited(req: IncomingMessage): boolean {
     if (RATE <= 0) return false;
-    const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+    // Only trust X-Forwarded-For behind a proxy that overwrites it; otherwise it's
+    // client-controlled and every spoofed value would get a fresh bucket.
+    const xff = TRUST_PROXY ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() : "";
+    const ip = xff || req.socket.remoteAddress || "unknown";
     const now = performance.now();
     const b = buckets.get(ip);
     if (!b || now > b.reset) {
       buckets.set(ip, { tokens: RATE - 1, reset: now + WINDOW });
-      if (buckets.size > 10_000) buckets.clear();
+      // Bound memory by pruning only EXPIRED buckets (never a global clear, which
+      // would reset every client's counter and let a burst past the cap).
+      if (buckets.size > 10_000) {
+        for (const [key, v] of buckets) if (v.reset <= now) buckets.delete(key);
+      }
       return false;
     }
     if (b.tokens <= 0) return true;
@@ -101,7 +123,7 @@ export function createSearchServer(searcher: Searcher, opts: SearchServerOptions
   }
 
   const authed = (req: IncomingMessage): boolean =>
-    !!ADMIN && String(req.headers["authorization"] ?? "") === `Bearer ${ADMIN}`;
+    !!ADMIN && safeEqual(String(req.headers["authorization"] ?? ""), `Bearer ${ADMIN}`);
   const denyAuth = (req: IncomingMessage, res: ServerResponse): void =>
     sendJson(req, res, ADMIN ? 401 : 403, { error: ADMIN ? "unauthorized" : "endpoint disabled (no admin token configured)" });
 

@@ -15,6 +15,7 @@ import { dirname, join, isAbsolute } from "node:path";
 import { existsSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { gzipSync } from "node:zlib";
+import { timingSafeEqual } from "node:crypto";
 
 import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
@@ -150,18 +151,24 @@ function sendJson(
   });
 }
 
-/** Tiny in-memory token-bucket rate limiter keyed on client IP (behind a proxy on Railway/Render). */
+// Only trust X-Forwarded-For when explicitly behind a proxy that overwrites it
+// (set TRUST_PROXY=1). Otherwise the header is client-controlled and defeats the limit.
+const TRUST_PROXY = process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true";
+
+/** Tiny in-memory token-bucket rate limiter keyed on client IP. */
 const buckets = new Map<string, { tokens: number; reset: number }>();
 function rateLimited(req: IncomingMessage): boolean {
-  const ip =
-    String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() ||
-    req.socket.remoteAddress ||
-    "unknown";
+  const xff = TRUST_PROXY ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() : "";
+  const ip = xff || req.socket.remoteAddress || "unknown";
   const now = performance.now();
   const b = buckets.get(ip);
   if (!b || now > b.reset) {
     buckets.set(ip, { tokens: RATE_LIMIT - 1, reset: now + RATE_WINDOW_MS });
-    if (buckets.size > 10_000) buckets.clear(); // crude memory bound
+    // Bound memory by pruning only EXPIRED buckets (not a global clear, which would
+    // reset every client's counter at once).
+    if (buckets.size > 10_000) {
+      for (const [key, v] of buckets) if (v.reset <= now) buckets.delete(key);
+    }
     return false;
   }
   if (b.tokens <= 0) return true;
@@ -169,10 +176,17 @@ function rateLimited(req: IncomingMessage): boolean {
   return false;
 }
 
+/** Constant-time compare for the admin bearer token (avoids a timing side channel). */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
 /** Authorize a write request against PRAGMA_ADMIN_TOKEN. Writes are off unless the token is set. */
 function authedWrite(req: IncomingMessage): boolean {
   if (!ADMIN_TOKEN) return false;
-  return String(req.headers["authorization"] ?? "") === `Bearer ${ADMIN_TOKEN}`;
+  return safeEqual(String(req.headers["authorization"] ?? ""), `Bearer ${ADMIN_TOKEN}`);
 }
 
 /** Read and JSON-parse a request body, bounded in size. */

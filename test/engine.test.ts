@@ -28,7 +28,7 @@ import { applyRankingRules } from "../src/ranking.js";
 import { signSearchToken, verifySearchToken, mergeForcedFilter } from "../src/tokens.js";
 import { highlightProduct, highlightField, snippetField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
-import type { PragmaIndex, IndexItem, Product, SearchSignal } from "../src/types.js";
+import type { PragmaIndex, IndexItem, Product, SearchSignal, Filter } from "../src/types.js";
 
 const item = (id: string, title: string): IndexItem => ({ id, vector: [], payload: { id, title } });
 
@@ -143,6 +143,25 @@ test("searchVectors throws on dimension mismatch", () => {
   assert.throws(() => searchVectors(index, [1, 0, 0], 3), /dim/);
 });
 
+test("searchVectors clamps invalid k and sorts malformed vectors last (no NaN scramble)", () => {
+  const index: PragmaIndex = {
+    meta: { version: 1, model: "m", dtype: "q8", dim: 2, pooling: "mean", normalize: true, count: 3, builtAt: "" },
+    items: [
+      { id: "a", vector: [1, 0], payload: { id: "a", title: "A" } },
+      { id: "b", vector: [0, 1], payload: { id: "b", title: "B" } },
+      { id: "bad", vector: [1], payload: { id: "bad", title: "corrupt" } }, // wrong length
+    ],
+  };
+  // negative/NaN k → clamped, not a slice-from-end / silent truncation
+  assert.equal(searchVectors(index, [1, 0], -1).length, 0);
+  assert.equal(searchVectors(index, [1, 0], NaN).length, 3); // NaN → default 10, capped at 3 items
+  // the malformed vector scores -Infinity and sorts last; no NaN in the ranking
+  const r = searchVectors(index, [1, 0], 3);
+  assert.equal(r[0].id, "a");
+  assert.equal(r[2].id, "bad");
+  assert.ok(r.every((h) => !Number.isNaN(h.score)));
+});
+
 // ---------- storage validation + round-trip ----------
 test("readProducts rejects missing fields and duplicate ids", async () => {
   const f = join(tmpdir(), `ps-test-${process.pid}.json`);
@@ -221,6 +240,23 @@ test("matchesFilter: scalar, array OR, numeric range, and AND across fields", ()
   assert.ok(!matchesFilter(p, { category: "Laptops", price: { lte: 500 } }));
 });
 
+test("matchesFilter: numeric-field refinements match their stringified facet values", () => {
+  // computeFacets stringifies values, so a facet click on a numeric field sends "2020".
+  const p: Product = { id: 1, title: "X", year: 2020 } as Product;
+  assert.ok(matchesFilter(p, { year: "2020" })); // scalar string vs number field
+  assert.ok(matchesFilter(p, { year: ["2019", "2020"] })); // array string vs number field
+  assert.ok(!matchesFilter(p, { year: "2019" }));
+  // and it doesn't break genuine same-type matches
+  assert.ok(matchesFilter(p, { year: 2020 } as unknown as Filter));
+});
+
+test("matchesFilter: numeric range on an array field matches if ANY value is in range", () => {
+  const p: Product = { id: 1, title: "X", sizes: [36, 42] } as Product;
+  assert.ok(matchesFilter(p, { sizes: { gte: 40 } })); // 42 satisfies it
+  assert.ok(matchesFilter(p, { sizes: { lte: 38 } })); // 36 satisfies it
+  assert.ok(!matchesFilter(p, { sizes: { gte: 50 } }));
+});
+
 // ---------- facets ----------
 test("computeFacets counts values (incl. array fields), sorted by count then name", () => {
   const items: Product[] = [
@@ -253,6 +289,14 @@ test("patchPayload updates fields without touching vectors; skips unknown ids", 
   assert.equal((idx.items[0].payload as Record<string, unknown>).stock, 5);
   assert.deepEqual(idx.items[0].vector, [0.5]); // vector untouched
   assert.equal(idx.items[1].payload.price, 200);
+});
+
+test("patchPayload ignores an `id` in the patch (can't desync payload.id from the item id)", () => {
+  const idx = mkIndex([{ id: 1, vector: [0.5], payload: { id: 1, title: "A", price: 100 } }]);
+  const n = patchPayload(idx, [{ id: 1, fields: { id: 999, price: 80 } as Partial<Product> }]);
+  assert.equal(n, 1);
+  assert.equal(idx.items[0].payload.id, 1); // id untouched
+  assert.equal(idx.items[0].payload.price, 80); // other fields still applied
 });
 
 test("removeItems drops by id and updates count", () => {

@@ -139,7 +139,11 @@ export function usePragmaSearch(opts: UsePragmaSearchOptions = {}): PragmaSearch
           setError(e as Error);
           setResp(null);
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          // Only the request that actually completed clears `loading`; an aborted
+          // request leaves it true so a superseding request keeps the spinner on.
+          if (!ctrl.signal.aborted) setLoading(false);
+        });
     }, debounceMs);
     return () => {
       clearTimeout(t);

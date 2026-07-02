@@ -7,6 +7,48 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-02
+
+Code-quality pass — no new features. Fixes from a multi-agent audit, each
+adversarially verified and regression-tested.
+
+### Fixed
+- **Filtered keyword/hybrid search** no longer drops valid in-filter matches: the
+  BM25 layer is ranked over the full corpus before the candidate filter, so a
+  filter whose matches rank low globally still returns them (previously could
+  return an empty/degraded result set).
+- **Numeric facet refinements now match**: `matchesFilter` compares stringified
+  values, so clicking a facet on a numeric field (e.g. `year: 2020`) works instead
+  of returning zero results.
+- **Numeric range filters on array fields** match if ANY value is in range (was
+  only testing the first element).
+- **Vue adapter**: clearing the search box now aborts the in-flight request and
+  pending debounce, so stale results can't resurface; both adapters keep the
+  loading flag set across an aborted→superseding request.
+- Malformed (wrong-length) vectors sort last instead of injecting `NaN` into the
+  ranking; `searchVectors` clamps invalid/negative/NaN `k`.
+- `patchPayload` ignores an `id` in the patch (can't desync `payload.id`).
+- `serve` now shuts down gracefully (drains connections, flushes analytics, clears
+  the timer) on SIGINT/SIGTERM even without analytics configured.
+
+### Security
+- **Rate limiter** keys on the socket address by default; the client
+  `X-Forwarded-For` header is only trusted with the new `trustProxy` option
+  (`TRUST_PROXY=1` for `serve`/demo), closing a trivial direct-exposure bypass.
+  Over-cap eviction now prunes only expired buckets instead of clearing all.
+- Admin bearer token compared with a constant-time `timingSafeEqual` (matching the
+  search-token HMAC), removing a timing side channel.
+
+### Performance
+- `customRanking` uses decorate-sort-undecorate (each payload lookup + field
+  coercion once, O(n) instead of O(n·log n)).
+- BM25 typo expansion scans only length-relevant vocabulary buckets instead of the
+  whole vocabulary.
+
+### Changed
+- Added optional `trustProxy` to `SearchServerOptions` and `maxScore` to the
+  adapter `SearchApiResponse` type (the server already returned it).
+
 ## [0.8.0] - 2026-07-02
 
 ### Added

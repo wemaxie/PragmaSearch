@@ -93,25 +93,6 @@ function fieldValue(p: Product | undefined, field: string): number | string | un
   return typeof v === "number" || typeof v === "string" ? v : undefined;
 }
 
-/** Compare two payloads by the custom-ranking chain; 0 if all criteria tie. */
-function compareByCriteria(
-  pa: Product | undefined,
-  pb: Product | undefined,
-  crits: CompiledCriterion[],
-): number {
-  for (const c of crits) {
-    const va = fieldValue(pa, c.field);
-    const vb = fieldValue(pb, c.field);
-    if (va === undefined && vb === undefined) continue;
-    if (va === undefined) return 1; // missing last
-    if (vb === undefined) return -1;
-    if (va === vb) continue;
-    const base = va < vb ? -1 : 1;
-    return c.asc ? base : -base;
-  }
-  return 0;
-}
-
 /**
  * Re-score and reorder a ranked list in place per the given rules. `getPayload`
  * resolves an id to its product (for filter matching). Returns the reordered list.
@@ -131,7 +112,11 @@ export function applyRankingRules<
 
   if (boost.length || bury.length) {
     // Express `by` relative to the top score so it behaves the same across modes
-    // (RRF scores are ~0.01, cosine is 0–1, browse mode is 0 → unit falls back to 1).
+    // (pure RRF ~0.01–0.03, cosine 0–1, browse 0 → unit falls back to 1). Note: in
+    // hybrid mode a verbatim primary-field match adds EXACT_BOOST (=1.0, see search.ts)
+    // BEFORE this runs, so when an exact match is present `unit` jumps to ~1.0 and a
+    // rule's *absolute* effect is ~30–60× larger than for the same query with no
+    // exact match — tune `by` with that in mind.
     const unit = ranked.reduce((m, r) => Math.max(m, r.score), 0) || 1;
     for (const r of ranked) {
       const payload = getPayload(r.id);
@@ -146,11 +131,27 @@ export function applyRankingRules<
     const top = ranked.reduce((m, r) => Math.max(m, r.score), 0);
     // Two items are "the same relevance tier" when their scores are within eps.
     const eps = (rules.customRankingEpsilon ?? 0.05) * (top || 1);
-    ranked = ranked.slice().sort((a, b) => {
-      if (Math.abs(a.score - b.score) > eps) return b.score - a.score; // relevance dominates
-      const d = compareByCriteria(getPayload(a.id), getPayload(b.id), crits);
-      return d !== 0 ? d : b.score - a.score; // fall back to relevance within the tier
+    // Decorate-sort-undecorate: resolve each payload + coerce its criterion fields
+    // exactly once (O(n)), not O(n log n) times inside the comparator.
+    const keyed = ranked.map((r) => ({
+      r,
+      keys: crits.map((c) => fieldValue(getPayload(r.id), c.field)),
+    }));
+    keyed.sort((A, B) => {
+      if (Math.abs(A.r.score - B.r.score) > eps) return B.r.score - A.r.score; // relevance dominates
+      for (let i = 0; i < crits.length; i++) {
+        const va = A.keys[i];
+        const vb = B.keys[i];
+        if (va === undefined && vb === undefined) continue;
+        if (va === undefined) return 1; // missing values sort last
+        if (vb === undefined) return -1;
+        if (va === vb) continue;
+        const base = va < vb ? -1 : 1;
+        return crits[i].asc ? base : -base;
+      }
+      return B.r.score - A.r.score; // fall back to relevance within the tier
     });
+    ranked = keyed.map((x) => x.r);
   }
 
   if (pin.length) {

@@ -109,6 +109,15 @@ export function usePragmaSearch(opts: UsePragmaSearchOptions = {}): PragmaSearch
   watch(
     [query, filter, page],
     () => {
+      // Always cancel any in-flight request + pending debounce first — including on
+      // the empty-query branch — so clearing the box can't let a stale result land
+      // (Vue's watch has no per-run cleanup, unlike React's effect return).
+      ctrl?.abort();
+      ctrl = null;
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
       const q = query.value.trim();
       if (!q && Object.keys(filter.value).length === 0) {
         resp.value = null;
@@ -116,8 +125,6 @@ export function usePragmaSearch(opts: UsePragmaSearchOptions = {}): PragmaSearch
         error.value = null;
         return;
       }
-      ctrl?.abort();
-      if (timer) clearTimeout(timer);
       loading.value = true;
       const input: SearchQuery = {
         query: q,
@@ -143,7 +150,8 @@ export function usePragmaSearch(opts: UsePragmaSearchOptions = {}): PragmaSearch
             resp.value = null;
           })
           .finally(() => {
-            loading.value = false;
+            // Only the request that actually completed clears `loading`.
+            if (!c.signal.aborted) loading.value = false;
           });
       }, debounceMs);
     },

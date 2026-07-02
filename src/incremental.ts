@@ -26,7 +26,14 @@ export function patchPayload(
   for (const { id, fields } of patches) {
     const it = byId.get(String(id));
     if (!it) continue;
-    Object.assign(it.payload, fields);
+    // Never let a patch rewrite `id` — that would desync payload.id from the item id
+    // and every id-keyed map. Patches are for mutable fields (price/stock/…).
+    if ("id" in fields) {
+      const { id: _ignored, ...rest } = fields;
+      Object.assign(it.payload, rest);
+    } else {
+      Object.assign(it.payload, fields);
+    }
     patched++;
   }
   return patched;

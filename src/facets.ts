@@ -19,14 +19,18 @@ export function matchesFilter(product: Product, filter: Filter): boolean {
     const values = toValues(product[field]);
 
     if (Array.isArray(cond)) {
-      if (!cond.some((c) => values.includes(c))) return false;
+      // Compare stringified — facet values arrive as strings (computeFacets keys via
+      // String(v)), so a numeric field like `year:2020` must still match "2020".
+      const set = new Set(values.map(String));
+      if (!cond.some((c) => set.has(String(c)))) return false;
     } else if (cond !== null && typeof cond === "object") {
-      const num = Number(values[0]);
-      if (!Number.isFinite(num)) return false;
-      if (cond.gte != null && !(num >= cond.gte)) return false;
-      if (cond.lte != null && !(num <= cond.lte)) return false;
+      // Numeric range with OR-over-values (an array field matches if ANY value is in range).
+      const nums = values.map(Number).filter(Number.isFinite);
+      if (!nums.length) return false;
+      if (cond.gte != null && !nums.some((n) => n >= cond.gte!)) return false;
+      if (cond.lte != null && !nums.some((n) => n <= cond.lte!)) return false;
     } else {
-      if (!values.includes(cond)) return false;
+      if (!values.map(String).includes(String(cond))) return false;
     }
   }
   return true;

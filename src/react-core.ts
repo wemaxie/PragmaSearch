@@ -27,6 +27,8 @@ export interface SearchApiResponse {
   ms: number;
   count: number;
   total: number;
+  /** Top cosine similarity of the best semantic match; present for vector/hybrid, omitted for keyword/browse. Useful as a relevance floor. */
+  maxScore?: number;
   offset: number;
   results: SearchResult[];
   facets?: Record<string, FacetValue[]>;

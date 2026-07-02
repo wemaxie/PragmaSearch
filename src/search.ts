@@ -28,8 +28,13 @@ import type {
   SearchResponse,
 } from "./types.js";
 
-/** Dot product. For L2-normalized vectors this equals cosine similarity. */
+/**
+ * Cosine score (dot product for L2-normalized vectors). A length mismatch (only
+ * possible from a hand-corrupted index) sorts cleanly last instead of injecting
+ * a NaN score that would scramble the ordering.
+ */
 function dot(a: number[], b: number[]): number {
+  if (a.length !== b.length) return -Infinity;
   let sum = 0;
   for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
   return sum;
@@ -49,6 +54,9 @@ export function searchVectors(
       `query vector dim ${queryVector.length} != index dim ${index.meta.dim}`,
     );
   }
+  // Clamp k like the internal search() does, so a negative/NaN k from an external
+  // caller can't slice from the end or truncate surprisingly.
+  const limit = Number.isFinite(k) ? Math.max(0, Math.floor(k)) : 10;
   const scored: SearchResult[] = index.items.map((item) => ({
     id: item.id,
     score: dot(queryVector, item.vector),
@@ -56,7 +64,7 @@ export function searchVectors(
     signals: ["vector"] as SearchSignal[],
   }));
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, k);
+  return scored.slice(0, limit);
 }
 
 const DEFAULT_RRF_K = 60;
@@ -241,12 +249,17 @@ export async function createSearcher(
     // Top cosine of the best semantic match (vector/hybrid only) — a relevance signal.
     let maxScore: number | undefined;
 
+    // The keyword layer ranks the GLOBAL corpus then we filter to candidates. When a
+    // filter is active, ask for the full ranking so in-filter matches ranked low
+    // globally aren't truncated away before the candidate filter runs.
+    const kwLimit = opts.filter ? index.items.length || 1 : candidates.length || 1;
+
     if (!q) {
       // Browse mode: no query → filtered set in catalog order (lets a UI filter without searching).
       ranked = candidates.map((it) => ({ id: String(it.id), score: 0, signals: [] }));
     } else if (mode === "keyword") {
       ranked = keyword
-        .search(q, candidates.length || 1, opts.typo, synonyms)
+        .search(q, kwLimit, opts.typo, synonyms)
         .filter((h) => candidateIds.has(h.id))
         .map((h) => ({ id: h.id, score: h.score, signals: ["keyword"] as SearchSignal[] }));
     } else {
@@ -262,7 +275,7 @@ export async function createSearcher(
         // hybrid: fuse vector + keyword rankings with RRF, then boost exact title matches.
         const vIds = vScored.map((r) => r.id);
         const kIds = keyword
-          .search(q, candidates.length || 1, opts.typo, synonyms)
+          .search(q, kwLimit, opts.typo, synonyms)
           .filter((h) => candidateIds.has(h.id))
           .map((h) => h.id);
         const fused = rrfFuse([vIds, kIds], rrfK);

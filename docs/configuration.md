@@ -289,8 +289,14 @@ createSearchServer(searcher, {
   searchSecret: process.env.SEARCH_SECRET, // enables signed &token= forced filters
   analytics: createAnalytics(),            // enables GET /api/analytics
   rateLimit: 60,                            // per IP / 10s (0 disables)
+  trustProxy: true,                         // ONLY if behind a proxy that overwrites X-Forwarded-For
 }).listen(8080);
 ```
+
+Rate limiting keys on the socket address by default. Set `trustProxy: true` (or the
+`TRUST_PROXY=1` env var for `serve` / the demo) **only** when you run behind a reverse proxy
+that overwrites `X-Forwarded-For` (Railway, Render, nginx) — otherwise the header is
+client-controlled and would let each spoofed value dodge the limit.
 
 Both `serve` and `createSearchServer` read the same env vars below (`PORT`,
 `PRAGMA_ADMIN_TOKEN`, `PRAGMA_SEARCH_SECRET`, `PRAGMA_CORS_ORIGIN`, `PRAGMA_ANALYTICS`).

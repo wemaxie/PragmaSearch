@@ -211,6 +211,8 @@ async function cmdServe(args: ParsedArgs): Promise<void> {
   // Optional analytics, persisted to PRAGMA_ANALYTICS (loaded on start, saved periodically).
   const analyticsFile = process.env.PRAGMA_ANALYTICS;
   let analytics: ReturnType<typeof createAnalytics> | undefined;
+  let persist = async (): Promise<void> => {};
+  let persistTimer: ReturnType<typeof setInterval> | undefined;
   if (analyticsFile) {
     let seed: AnalyticsState | undefined;
     if (existsSync(analyticsFile)) {
@@ -221,24 +223,22 @@ async function cmdServe(args: ParsedArgs): Promise<void> {
       }
     }
     analytics = createAnalytics({}, seed);
-    const persist = async (): Promise<void> => {
+    persist = async (): Promise<void> => {
       try {
         await writeFile(analyticsFile, JSON.stringify(analytics!.toJSON()));
       } catch {
         /* ignore */
       }
     };
-    const timer = setInterval(() => void persist(), 15_000);
-    timer.unref?.();
-    for (const sig of ["SIGINT", "SIGTERM"] as const) {
-      process.on(sig, () => void persist().finally(() => process.exit(0)));
-    }
+    persistTimer = setInterval(() => void persist(), 15_000);
+    persistTimer.unref?.();
   }
 
-  const { listen } = createSearchServer(searcher, {
+  const { server, listen } = createSearchServer(searcher, {
     adminToken: process.env.PRAGMA_ADMIN_TOKEN,
     searchSecret: process.env.PRAGMA_SEARCH_SECRET,
     corsOrigin: process.env.PRAGMA_CORS_ORIGIN,
+    trustProxy: process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true",
     analytics,
     onWrite: () => saveIndex(indexFile, index),
   });
@@ -246,6 +246,19 @@ async function cmdServe(args: ParsedArgs): Promise<void> {
     console.log(`\n  PragmaSearch API → http://localhost:${port}  (${index.meta.count} items, model ${index.meta.model})`);
     if (!process.env.PRAGMA_ADMIN_TOKEN) console.log("  (writes + analytics disabled — set PRAGMA_ADMIN_TOKEN to enable)");
   });
+
+  // Graceful shutdown: flush analytics, drain connections, with a hard fallback.
+  let shuttingDown = false;
+  const shutdown = (): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    if (persistTimer) clearInterval(persistTimer);
+    const done = (): never => process.exit(0);
+    const fallback = setTimeout(done, 5_000);
+    fallback.unref?.();
+    void persist().finally(() => server.close(done));
+  };
+  for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, shutdown);
 }
 
 function cmdToken(args: ParsedArgs): void {

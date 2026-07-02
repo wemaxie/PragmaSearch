@@ -204,7 +204,15 @@ export function buildKeywordIndex(
 
   const N = docLen.size;
   const avgdl = N > 0 ? totalLen / N : 0;
-  const vocab = [...postings.keys()];
+
+  // Bucket vocab terms by length so typo expansion only scans terms whose length is
+  // within the edit budget of the query term, instead of the whole vocabulary.
+  const vocabByLen = new Map<number, string[]>();
+  for (const term of postings.keys()) {
+    const arr = vocabByLen.get(term.length);
+    if (arr) arr.push(term);
+    else vocabByLen.set(term.length, [term]);
+  }
 
   const idf = (term: string): number => {
     const df = postings.get(term)?.size ?? 0;
@@ -222,10 +230,15 @@ export function buildKeywordIndex(
     const max = maxTyposFor(term, typo);
     if (max === 0) return [];
     const out: Array<[string, number]> = [];
-    for (const cand of vocab) {
-      if (Math.abs(cand.length - term.length) > max) continue;
-      const d = boundedLevenshtein(term, cand, max);
-      if (d <= max) out.push([cand, Math.pow(typo.penalty, d)]);
+    // Only candidates whose length is within `max` of the query term can be within
+    // edit distance `max`, so scan just those length buckets.
+    for (let len = term.length - max; len <= term.length + max; len++) {
+      const bucket = vocabByLen.get(len);
+      if (!bucket) continue;
+      for (const cand of bucket) {
+        const d = boundedLevenshtein(term, cand, max);
+        if (d <= max) out.push([cand, Math.pow(typo.penalty, d)]);
+      }
     }
     return out;
   }

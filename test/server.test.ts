@@ -93,3 +93,18 @@ test("createSearchServer: per-IP rate limiting on /api/search", async () => {
     server.close();
   }
 });
+
+test("createSearchServer: spoofed X-Forwarded-For does NOT bypass the limit (trustProxy off by default)", async () => {
+  const { server } = createSearchServer(stubSearcher(), { rateLimit: 2 });
+  const base = await listen(server);
+  try {
+    const codes: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      codes.push((await fetch(`${base}/api/search?q=hi`, { headers: { "x-forwarded-for": `1.2.3.${i}` } })).status);
+    }
+    // all requests key on the real socket, so a spoofed header can't mint fresh buckets
+    assert.deepEqual(codes, [200, 200, 429]);
+  } finally {
+    server.close();
+  }
+});
