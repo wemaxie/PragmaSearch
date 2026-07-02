@@ -19,6 +19,7 @@ import {
 import { searchVectors, createSearcher } from "../src/search.js";
 import { matchesFilter, computeFacets } from "../src/facets.js";
 import { patchPayload, removeItems, planUpsert, applyUpsert } from "../src/incremental.js";
+import { resolveSearchable, fieldText, productText, DEFAULT_SEARCHABLE } from "../src/searchable.js";
 import { highlightProduct, highlightField } from "../src/highlight.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
 import type { PragmaIndex, IndexItem, Product } from "../src/types.js";
@@ -247,4 +248,58 @@ test("highlightProduct highlights requested fields; empty query → none", () =>
   assert.match(h.title, /<mark>RTX<\/mark>/);
   assert.match(h.title, /<mark>Graphics<\/mark>/);
   assert.deepEqual(highlightProduct(p, ""), {});
+});
+
+// ---------- F4: searchable attributes + field weights ----------
+test("resolveSearchable normalizes strings, ^weights, objects; empty → default", () => {
+  assert.deepEqual(resolveSearchable(["title^3", "brand", { field: "sku", weight: 2 }]), [
+    { field: "title", weight: 3 },
+    { field: "brand", weight: 1 },
+    { field: "sku", weight: 2 },
+  ]);
+  // empty / degenerate configs fall back to the historical default
+  assert.deepEqual(resolveSearchable([]), DEFAULT_SEARCHABLE);
+  assert.deepEqual(resolveSearchable(undefined), DEFAULT_SEARCHABLE);
+  assert.deepEqual(resolveSearchable([{ field: "", weight: 0 }]), DEFAULT_SEARCHABLE);
+});
+
+test("fieldText extracts strings, arrays, numbers; ignores objects/missing", () => {
+  const p: Product = { id: 1, title: "T", tags: ["a", "b"], price: 9 };
+  assert.equal(fieldText(p, "title"), "T");
+  assert.equal(fieldText(p, "tags"), "a b"); // arrays space-joined
+  assert.equal(fieldText(p, "price"), "9"); // numbers stringified
+  assert.equal(fieldText(p, "missing"), "");
+});
+
+test("productText embeds selected fields in declared order, skipping empties", () => {
+  const p: Product = { id: 1, title: "Mouse", brand: "Acme", description: "" };
+  const attrs = resolveSearchable(["brand^2", "title", "description"]);
+  assert.equal(productText(p, attrs), "Acme. Mouse");
+});
+
+test("buildKeywordIndex honors field weights and makes new fields searchable", () => {
+  const items: IndexItem[] = [
+    { id: "1", vector: [], payload: { id: "1", title: "Widget", brand: "Gaming" } },
+    { id: "2", vector: [], payload: { id: "2", title: "Gaming", brand: "Acme" } },
+  ];
+  const weighted = buildKeywordIndex(
+    items,
+    resolveSearchable([{ field: "title", weight: 1 }, { field: "brand", weight: 5 }]),
+  );
+  // "gaming" sits in #1's weight-5 brand field → outranks #2 (weight-1 title)
+  assert.equal(weighted.search("gaming", 5)[0].id, "1");
+  // ...and brand is searchable now
+  assert.equal(weighted.search("acme", 5)[0].id, "2");
+  // the default config does NOT search brand → "acme" finds nothing
+  assert.equal(buildKeywordIndex(items).search("acme", 5).length, 0);
+});
+
+test("exactTitleMatches can target a non-title field", () => {
+  const items: IndexItem[] = [
+    { id: "1", vector: [], payload: { id: "1", title: "X", brand: "Acme Corp" } },
+    { id: "2", vector: [], payload: { id: "2", title: "Acme Corp", brand: "Other" } },
+  ];
+  const hits = exactTitleMatches("acme corp", items, "brand");
+  assert.ok(hits.has("1"));
+  assert.ok(!hits.has("2"));
 });

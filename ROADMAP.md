@@ -21,7 +21,7 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [x] Incremental index updates (add / update / delete without a full re-embed)
 
 **Should-have (relevance tuning + production readiness)**
-- [ ] Configurable searchable attributes & field weights
+- [x] Configurable searchable attributes & field weights ([docs](docs/configuration.md#searchable-attributes--field-weights))
 - [ ] Synonyms and custom ranking rules (boost / bury / pin)
 - [ ] Persist the keyword index instead of rebuilding on cold start
 - [ ] Server-mode API auth + CORS config (rate limiting already present)

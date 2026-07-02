@@ -9,7 +9,7 @@ Build an index once from your products JSON. Each product needs at least `{ id, 
 everything else is carried through as payload and is filterable/facetable.
 
 ```bash
-npx pragmasearch index products.json [--out <file>] [--model <id>] [--dtype <q8|fp32>]
+npx pragmasearch index products.json [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>]
 ```
 
 | Option | Default | Description |
@@ -17,6 +17,7 @@ npx pragmasearch index products.json [--out <file>] [--model <id>] [--dtype <q8|
 | `--out` | `pragmasearch-index.json` | Where to write the index file |
 | `--model` | `Xenova/all-MiniLM-L6-v2` | Embedding model (see [Models](#models)) |
 | `--dtype` | `q8` | Quantization: `q8` (small/fast) or `fp32` (max quality) |
+| `--searchable` | `title^2,description,category,tags` | Fields to search + weights (see [below](#searchable-attributes--field-weights)) |
 
 Programmatic equivalent:
 
@@ -29,6 +30,35 @@ await saveIndex("pragmasearch-index.json", index);
 The index records the model/dtype/dim/format-version in its `meta`, so the query encoder
 always matches the document encoder — querying with a mismatched encoder throws instead of
 returning garbage.
+
+### Searchable attributes & field weights
+
+By default PragmaSearch searches `title` (weighted ×2), `description`, `category` and `tags`.
+Override this to index other fields (e.g. `brand`, `sku`) or to change how much each one
+counts toward relevance:
+
+```bash
+npx pragmasearch index products.json --searchable "title^3,brand^2,description,tags"
+```
+
+```ts
+await buildIndex(products, {
+  searchableAttributes: ["title^3", "brand^2", "description", { field: "sku", weight: 1 }],
+});
+```
+
+- Syntax: `"field"` (weight 1) or `"field^N"`; programmatically also `{ field, weight }`.
+- **Weight** scales the field's contribution to the keyword (BM25) layer — a term in a
+  weight-2 field counts as if it appeared twice. The exact-match boost targets the
+  **highest-weight** field (so keep your display/title field first or heaviest).
+- Fields not listed are **not searched** (but stay filterable/facetable and are returned in
+  the payload). Values can be strings, string arrays (like `tags`), or numbers.
+- The config is stored in the index `meta`, so search and incremental `upsert` reuse the
+  exact same fields/weights. Changing it requires re-indexing.
+
+> Note on the vector layer: a product is embedded as one mean-pooled vector, so weights
+> tune the keyword layer, not the vector. The listed fields (in order) make up the embedded
+> text; the leading field carries the most semantic signal for these short sentence models.
 
 ## Searching
 

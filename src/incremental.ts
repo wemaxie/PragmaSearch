@@ -1,5 +1,5 @@
 import type { PragmaIndex, Product, IndexItem } from "./types.js";
-import { productText } from "./index-builder.js";
+import { productText, resolveSearchable } from "./searchable.js";
 
 /**
  * Incremental index updates — the cheap path for live catalogs.
@@ -50,12 +50,13 @@ export function planUpsert(
   index: PragmaIndex,
   products: Product[],
 ): { toEmbed: Product[]; toReuse: { item: IndexItem; product: Product }[] } {
+  const attrs = resolveSearchable(index.meta.searchableAttributes);
   const byId = new Map(index.items.map((it) => [String(it.id), it]));
   const toEmbed: Product[] = [];
   const toReuse: { item: IndexItem; product: Product }[] = [];
   for (const p of products) {
     const existing = byId.get(String(p.id));
-    if (existing && productText(existing.payload) === productText(p)) {
+    if (existing && productText(existing.payload, attrs) === productText(p, attrs)) {
       toReuse.push({ item: existing, product: p });
     } else {
       toEmbed.push(p);

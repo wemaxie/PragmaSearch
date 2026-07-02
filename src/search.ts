@@ -8,6 +8,7 @@ import {
   type TypoOptions,
 } from "./hybrid.js";
 import { matchesFilter, computeFacets } from "./facets.js";
+import { resolveSearchable } from "./searchable.js";
 import { planUpsert, applyUpsert, removeItems, patchPayload, round4 } from "./incremental.js";
 import { highlightProduct, type HighlightOptions } from "./highlight.js";
 import type {
@@ -143,13 +144,18 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     );
   }
 
+  // Searchable fields + weights the index was built with (default if pre-0.3).
+  const attrs = resolveSearchable(meta.searchableAttributes);
+  // Field the exact-match boost targets: the highest-weight searchable field.
+  const primaryField = [...attrs].sort((a, b) => b.weight - a.weight)[0]?.field ?? "title";
+
   // Reassigned on incremental add/remove (text changes invalidate the keyword index).
-  let keyword = buildKeywordIndex(index.items);
+  let keyword = buildKeywordIndex(index.items, attrs);
   let byId = new Map<string, IndexItem>(
     index.items.map((it) => [String(it.id), it]),
   );
   const rebuildDerived = (): void => {
-    keyword = buildKeywordIndex(index.items);
+    keyword = buildKeywordIndex(index.items, attrs);
     byId = new Map(index.items.map((it) => [String(it.id), it]));
   };
 
@@ -217,7 +223,7 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
           .filter((h) => candidateIds.has(h.id))
           .map((h) => h.id);
         const fused = rrfFuse([vIds, kIds], rrfK);
-        const exact = exactTitleMatches(q, candidates);
+        const exact = exactTitleMatches(q, candidates, primaryField);
         for (const id of exact) fused.set(id, (fused.get(id) ?? 0) + EXACT_BOOST);
         const vSet = new Set(vIds);
         const kSet = new Set(kIds);
@@ -272,7 +278,7 @@ export async function createSearcher(index: PragmaIndex): Promise<Searcher> {
     let embedded: IndexItem[] = [];
     if (toEmbed.length) {
       const prefix = docPrefix(meta.model);
-      const vectors = await embedder.embed(toEmbed.map((p) => prefix + productText(p)));
+      const vectors = await embedder.embed(toEmbed.map((p) => prefix + productText(p, attrs)));
       embedded = toEmbed.map((p, i) => ({
         id: p.id,
         vector: vectors[i].map(round4),

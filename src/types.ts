@@ -15,6 +15,19 @@ export interface Product {
   [key: string]: unknown;
 }
 
+/**
+ * A field to make searchable, with an optional relevance weight (default 1).
+ * Shorthand: `"title"` (weight 1) or `"title^3"` (weight 3); or `{ field, weight }`.
+ * Weight scales the field's BM25 contribution (a weight-2 field counts terms double).
+ */
+export type SearchableAttribute = string | { field: string; weight?: number };
+
+/** A normalized searchable attribute (as stored in the index meta). */
+export interface ResolvedAttribute {
+  field: string;
+  weight: number;
+}
+
 /** Metadata stored alongside the index so the query encoder always matches the index encoder. */
 export interface IndexMeta {
   /** PragmaSearch index format version. */
@@ -31,6 +44,12 @@ export interface IndexMeta {
   normalize: boolean;
   /** Number of indexed items. */
   count: number;
+  /**
+   * Fields made searchable + their weights, governing both the embed text and the
+   * BM25 layer. Absent on pre-0.3 indexes → the engine falls back to the default
+   * (title^2, description, category, tags).
+   */
+  searchableAttributes?: ResolvedAttribute[];
   /** ISO timestamp the index was built. */
   builtAt: string;
 }

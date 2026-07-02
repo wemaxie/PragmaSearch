@@ -131,8 +131,9 @@ model is recorded in the index, so query and document encoders always match. See
 
 Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, pagination**,
 **result highlighting**, a **[drop-in search widget](docs/widget.md)** (dependency-free, themeable),
+**[configurable searchable attributes & field weights](docs/configuration.md#searchable-attributes--field-weights)**,
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
-multilingual, CLI + API + demo server. Next: searchable-attribute weights, synonyms, ranking rules,
+multilingual, CLI + API + demo server. Next: synonyms, ranking rules (boost/bury/pin),
 and a full React component adapter — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community

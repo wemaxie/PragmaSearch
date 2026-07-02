@@ -1,4 +1,5 @@
-import type { IndexItem } from "./types.js";
+import type { IndexItem, ResolvedAttribute } from "./types.js";
+import { DEFAULT_SEARCHABLE, fieldText } from "./searchable.js";
 
 /**
  * Self-contained keyword (BM25) layer for hybrid search — zero dependencies,
@@ -42,7 +43,6 @@ export function tokenize(text: string): string[] {
 
 const K1 = 1.5;
 const B = 0.75;
-const TITLE_WEIGHT = 2; // count title terms double — title relevance matters most for products
 
 /**
  * Typo tolerance config. When a query word isn't found exactly, we match
@@ -117,8 +117,15 @@ export interface KeywordIndex {
   search(query: string, limit: number, typo?: boolean | TypoOptions): KeywordHit[];
 }
 
-/** Build an in-memory BM25 index from indexed items. */
-export function buildKeywordIndex(items: IndexItem[]): KeywordIndex {
+/**
+ * Build an in-memory BM25 index from indexed items. Each searchable attribute's
+ * text is tokenized and added with its weight (a weight-2 field counts terms
+ * double). Defaults to the standard title^2 / description / category / tags.
+ */
+export function buildKeywordIndex(
+  items: IndexItem[],
+  attrs: ResolvedAttribute[] = DEFAULT_SEARCHABLE,
+): KeywordIndex {
   // postings: term -> (docId -> weighted term frequency)
   const postings = new Map<string, Map<string, number>>();
   const docLen = new Map<string, number>();
@@ -136,12 +143,9 @@ export function buildKeywordIndex(items: IndexItem[]): KeywordIndex {
 
   for (const it of items) {
     const id = String(it.id);
-    const p = it.payload;
-    addTokens(id, tokenize(p.title ?? ""), TITLE_WEIGHT);
-    const rest = [p.description, p.category, Array.isArray(p.tags) ? p.tags.join(" ") : ""]
-      .filter(Boolean)
-      .join(" ");
-    addTokens(id, tokenize(rest), 1);
+    for (const { field, weight } of attrs) {
+      addTokens(id, tokenize(fieldText(it.payload, field)), weight);
+    }
   }
 
   const N = docLen.size;
@@ -227,15 +231,22 @@ function norm(s: string): string {
 
 /**
  * Exact-match boost. When the user's query appears verbatim in a product's
- * title (e.g. "RTX 4070", a brand, a SKU), we bump it so literal lookups win
- * even when neither semantic nor BM25 ranks it first. Returns ids to boost.
+ * primary field (e.g. "RTX 4070", a brand, a SKU in the title), we bump it so
+ * literal lookups win even when neither semantic nor BM25 ranks it first.
+ * `field` defaults to "title" — pass the highest-weight searchable field.
+ * Returns ids to boost.
  */
-export function exactTitleMatches(query: string, items: IndexItem[]): Set<string> {
+export function exactTitleMatches(
+  query: string,
+  items: IndexItem[],
+  field = "title",
+): Set<string> {
   const q = norm(query);
   const hits = new Set<string>();
   if (q.length < 2) return hits;
   for (const it of items) {
-    if (norm(it.payload.title ?? "").includes(q)) hits.add(String(it.id));
+    const v = fieldText(it.payload, field);
+    if (v && norm(v).includes(q)) hits.add(String(it.id));
   }
   return hits;
 }

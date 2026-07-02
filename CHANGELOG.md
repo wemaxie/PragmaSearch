@@ -14,6 +14,13 @@ change between minor versions — pin the version you depend on.
   Themeable via `--ps-*` CSS vars; served by the demo server at `/widget`.
 - Read API now sends CORS (`PRAGMA_CORS_ORIGIN`, default `*`) so the widget can
   run cross-origin.
+- **Configurable searchable attributes & field weights** — choose which fields
+  are searched and how heavily (`--searchable "title^3,brand^2,description"` /
+  `buildIndex(products, { searchableAttributes })`). Replaces the hardcoded
+  field list and title×2 weight; the config is stored in the index `meta` so
+  search and `upsert` reuse it. Default is unchanged
+  (`title^2, description, category, tags`) — existing indexes keep working.
+  Exposes `resolveSearchable` / `fieldText` / `DEFAULT_SEARCHABLE`.
 
 ## [0.2.0]
 

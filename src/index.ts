@@ -25,9 +25,17 @@ export type {
   FilterCondition,
   FacetValue,
   SearchResponse,
+  SearchableAttribute,
+  ResolvedAttribute,
 } from "./types.js";
 
 export { matchesFilter, computeFacets } from "./facets.js";
+
+export {
+  resolveSearchable,
+  fieldText,
+  DEFAULT_SEARCHABLE,
+} from "./searchable.js";
 
 export {
   createEmbedder,

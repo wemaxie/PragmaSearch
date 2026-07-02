@@ -61,11 +61,15 @@ function usage(): void {
 PragmaSearch — local-first semantic search. No cloud, no API keys, $0.
 
 Usage:
-  pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>]
+  pragmasearch index <products.json> [--out <file>] [--model <id>] [--dtype <q8|fp32>] [--searchable <fields>]
   pragmasearch search <query...> [--index <file>] [-k <n>] [--mode <hybrid|vector|keyword>] [--typo <on|off>]
+
+  --searchable  comma-separated fields with optional ^weight, e.g.
+                "title^3,description,brand^2,tags" (default: title^2,description,category,tags)
 
 Examples:
   pragmasearch index data/products.json
+  pragmasearch index data/products.json --searchable "title^3,brand^2,description,tags"
   pragmasearch search "something for gaming" -k 5
   pragmasearch search "RTX 4070" --mode hybrid
   pragmasearch search "opple airpods" --typo on
@@ -81,6 +85,11 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
   const out = strFlag(args.flags, "out") ?? DEFAULT_INDEX_FILE;
   const model = strFlag(args.flags, "model");
   const dtype = strFlag(args.flags, "dtype");
+  const searchableFlag = strFlag(args.flags, "searchable");
+  // "title^3,description,brand^2" -> ["title^3","description","brand^2"]; searchable.ts parses the ^weight.
+  const searchableAttributes = searchableFlag
+    ? searchableFlag.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
 
   const products = await readProducts(input);
   console.log(`Indexing ${products.length} products from ${input} ...`);
@@ -89,6 +98,7 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
   const index = await buildIndex(products, {
     model,
     dtype,
+    searchableAttributes,
     onProgress: (e: any) => {
       if (e?.status === "progress" && e?.file?.endsWith?.(".onnx")) {
         process.stdout.write(
@@ -103,9 +113,13 @@ async function cmdIndex(args: ParsedArgs): Promise<void> {
   const secs = ((performance.now() - t0) / 1000).toFixed(1);
 
   await saveIndex(out, index);
+  const fields = (index.meta.searchableAttributes ?? [])
+    .map((a) => (a.weight === 1 ? a.field : `${a.field}^${a.weight}`))
+    .join(", ");
   console.log(
     `\nDone. model=${index.meta.model} dim=${index.meta.dim} dtype=${index.meta.dtype} ` +
-      `items=${index.meta.count} in ${secs}s -> ${out}`,
+      `items=${index.meta.count} in ${secs}s -> ${out}` +
+      (fields ? `\n  searchable: ${fields}` : ""),
   );
 }
 
