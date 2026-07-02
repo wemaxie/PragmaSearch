@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-02
+
 ### Added
 - **Drop-in search widget** (`widget/pragmasearch-widget.js` + `.css`) — a
   dependency-free Algolia-InstantSearch-style UI (search box, autocomplete,
