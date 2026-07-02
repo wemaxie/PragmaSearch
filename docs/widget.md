@@ -62,20 +62,10 @@ Override the CSS variables on `.ps-root`:
 
 ## React
 
-Wrap it in an effect (a full React-component adapter is on the [roadmap](../ROADMAP.md)):
-
-```jsx
-import { useEffect, useRef } from "react";
-
-export function Search({ endpoint }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const inst = window.PragmaSearch.create({ container: ref.current, endpoint });
-    return () => inst.destroy();
-  }, [endpoint]);
-  return <div ref={ref} />;
-}
-```
+Don't wrap this vanilla widget — use the native React adapter instead:
+**[`pragmasearch/react`](react.md)** ships real components (`<PragmaSearch>`,
+`<SearchBox>`, `<Hits>`, `<RefinementList>`, `<Pagination>`) and a headless
+`usePragmaSearch` hook, and reuses this same `.ps-*` stylesheet.
 
 ## CORS
 

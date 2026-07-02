@@ -60,7 +60,7 @@ replace your hosted-search bill with $0.
 | **Filtering · faceting · pagination** | ✅ | ✅ |
 | **Result highlighting** | ✅ | ✅ |
 | **Synonyms · ranking rules** (boost/bury/pin) | ✅ | ✅ [docs](docs/configuration.md#synonyms) |
-| **Drop-in UI widget** | ✅ | ✅ [docs](docs/widget.md) |
+| **UI: drop-in widget + React** | ✅ | ✅ [widget](docs/widget.md) · [React](docs/react.md) |
 
 > Built for small-to-mid catalogs (≤ ~50k items). For million-SKU real-time catalogs with
 > deep analytics and A/B testing, the hosted platforms still win — see the [roadmap](ROADMAP.md).
@@ -123,7 +123,8 @@ model is recorded in the index, so query and document encoders always match. See
 
 ## 📚 Documentation
 
-- **[Configuration reference](docs/configuration.md)** — every option: indexing, search, filters, facets, server env vars, models.
+- **[Configuration reference](docs/configuration.md)** — every option: indexing, search, filters, facets, synonyms, ranking rules, server env vars, models.
+- **[Drop-in widget](docs/widget.md)** · **[React adapter](docs/react.md)** — embed search UI with the vanilla widget or native React components.
 - **[Performance & VPS sizing](docs/performance.md)** — what CPU you need for ~50 ms search, RAM by catalog size, scaling.
 - **[Deployment](DEPLOY.md)** — Railway / Render / Fly / VPS, with Docker.
 - **[Roadmap](ROADMAP.md)** · **[Changelog](CHANGELOG.md)**
@@ -131,13 +132,13 @@ model is recorded in the index, so query and document encoders always match. See
 ## 🗺️ Roadmap
 
 Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, pagination**,
-**result highlighting**, a **[drop-in search widget](docs/widget.md)** (dependency-free, themeable),
-**[configurable searchable attributes & field weights](docs/configuration.md#searchable-attributes--field-weights)**,
+**result highlighting**, a **[drop-in widget](docs/widget.md)** + native **[React adapter](docs/react.md)**
+(components + a headless hook), **[configurable searchable attributes & field weights](docs/configuration.md#searchable-attributes--field-weights)**,
 **[synonyms](docs/configuration.md#synonyms)** (multi-way + one-way query expansion),
 **[ranking rules](docs/configuration.md#ranking-rules--merchandising)** (boost / bury / pin),
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
-multilingual, CLI + API + demo server. Next: a full React component adapter and a persisted
-keyword index — see **[ROADMAP.md](ROADMAP.md)**.
+multilingual, CLI + API + demo server. Next: a persisted keyword index and a compact/quantized
+index format — see **[ROADMAP.md](ROADMAP.md)**.
 
 ## 💬 Community
 

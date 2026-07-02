@@ -17,7 +17,8 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [x] Filtering & faceting (price / category / brand) with facet counts
 - [x] Pagination / offset
 - [x] Result highlighting (stem-aware `<mark>`; snippet windows still TODO)
-- [x] Drop-in search widget (dependency-free, themeable, faceted) — [docs](docs/widget.md). Full React/Vue component adapters still TODO (a `useEffect` wrapper is documented).
+- [x] Drop-in search widget (dependency-free, themeable, faceted) — [docs](docs/widget.md)
+- [x] React adapter — native components + a headless `usePragmaSearch` hook, published as `pragmasearch/react` ([docs](docs/react.md)). Vue adapter still TODO.
 - [x] Incremental index updates (add / update / delete without a full re-embed)
 
 **Should-have (relevance tuning + production readiness)**

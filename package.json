@@ -13,7 +13,8 @@
     "local-first",
     "algolia-alternative",
     "hybrid-search",
-    "e-commerce"
+    "e-commerce",
+    "react"
   ],
   "bin": {
     "pragmasearch": "dist/cli.js"
@@ -25,7 +26,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./widget/*": "./widget/*"
   },
   "files": [
     "dist",
@@ -34,7 +40,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/engine.test.ts",
+    "test": "node --import tsx --test test/engine.test.ts test/react-core.test.ts test/react.test.tsx",
     "index": "tsx src/cli.ts index",
     "search": "tsx src/cli.ts search",
     "demo": "tsx demo/server.ts",
@@ -46,8 +52,24 @@
   "dependencies": {
     "@huggingface/transformers": "^4.2.0"
   },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

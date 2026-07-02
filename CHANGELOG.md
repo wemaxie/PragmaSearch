@@ -7,6 +7,14 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **React adapter** (`pragmasearch/react`) — native components (`<PragmaSearch>`,
+  `<SearchBox>`, `<RefinementList>`, `<Hits>`, `<Pagination>`, `<ClearRefinements>`,
+  `<PoweredBy>`) plus a headless `usePragmaSearch` hook that owns query,
+  refinements, pagination, debouncing and fetching. Reuses the `.ps-*` widget
+  styles; React is an optional peer dependency (18 or 19). Exposes
+  `buildSearchParams` / `searchUrl` / `fetchSearch` for custom clients.
+
 ## [0.3.0] - 2026-07-02
 
 ### Added
