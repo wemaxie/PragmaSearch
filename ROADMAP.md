@@ -31,7 +31,8 @@ API keys, $0** — best for small-to-mid catalogs (≤ ~50k items).
 - [ ] Compact / quantized index format (gzip + int8 vectors) for lower memory & faster loads
 
 **Nice-to-have**
-- [ ] Search analytics (top queries, zero-result queries, latency) and a docs site
+- [x] Search analytics — top queries, **zero-result queries**, latency ([docs](docs/configuration.md#analytics)). Next: A/B testing, a docs site
+- [ ] `SearchResponse.maxScore` relevance floor to return honest zero-results in the UI (signal shipped; UI opt-in TODO)
 - [ ] Reproducible public relevance benchmark
 
 **Not planned**

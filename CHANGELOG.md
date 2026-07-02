@@ -7,6 +7,17 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+### Added
+- **Search analytics** — `createAnalytics()` records top queries, **zero-result
+  queries**, and latency (p50/p95/p99), bounded in memory and serializable. The
+  demo server records every search, serves a gated dashboard at `/analytics` and
+  `GET /api/analytics` (+ `POST /api/analytics/reset`), and persists to
+  `PRAGMA_ANALYTICS` when set. Query text is gated behind `PRAGMA_ADMIN_TOKEN`.
+- **`SearchResponse.maxScore`** — top cosine similarity (0..1) of the best
+  semantic match for `vector`/`hybrid` queries. Enables a relevance floor: because
+  vector search always returns the nearest items, a low `maxScore` means "no strong
+  match". The demo flags zero-result via `PRAGMA_ZERO_FLOOR` (default 0.35).
+
 ## [0.4.0] - 2026-07-02
 
 ### Added

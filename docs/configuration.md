@@ -100,10 +100,16 @@ interface SearchResponse {
   offset: number;
   limit: number;
   facets?: Record<string, { value: string; count: number }[]>;
+  maxScore?: number;                          // top cosine similarity (vector/hybrid); see Analytics
 }
 ```
 
-`signals` on each hit shows *why* it matched: `["vector"]`, `["keyword"]`, `["exact"]`, or a combination.
+`signals` on each hit shows *why* it matched: `["vector"]`, `["keyword"]`, `["exact"]`, `["pinned"]`, or a combination.
+
+`maxScore` is the best semantic match's cosine similarity (0..1) for `vector`/`hybrid` queries.
+Because vector search always returns the *nearest* items, a low `maxScore` (e.g. < ~0.35 for
+MiniLM) means "nothing really matched" even though `total` is non-zero — use it for a relevance
+floor or zero-result detection (see [Analytics](#analytics)).
 
 ## Filtering
 
@@ -195,6 +201,33 @@ query-conditional merchandising (e.g. pin a promo for one search term).
 
 CLI: `pragmasearch search "keyboard" --rules rules.json`. Demo server: `PRAGMA_RANKING`.
 
+## Analytics
+
+The demo server records every search and exposes **what people search, what returns
+nothing, and how fast** — the zero-result list is the most direct signal of which synonyms,
+ranking rules or catalog gaps to fix.
+
+- **Dashboard:** `GET /analytics` (an HTML page; paste your admin token to load data).
+- **API:** `GET /api/analytics?topN=50` → a JSON summary (`totalSearches`, `zeroResultRate`,
+  `topQueries`, `zeroResultQueries`, `latency` p50/p95/p99, …). `POST /api/analytics/reset` clears it.
+- **Gating:** both require `Authorization: Bearer <PRAGMA_ADMIN_TOKEN>` — query text is your data,
+  so it's never exposed publicly (the endpoints are disabled unless the admin token is set).
+- **Persistence:** set `PRAGMA_ANALYTICS` to a file path to load on start + save periodically;
+  otherwise analytics live in memory for the process lifetime.
+
+Zero-result for semantic search: because `vector`/`hybrid` always return the nearest items, a
+query counts as zero-result when the top similarity is below `PRAGMA_ZERO_FLOOR` (default `0.35`,
+tuned for MiniLM/e5 — raise it for pickier models), or when a filter excludes everything.
+
+Programmatic (`createAnalytics` is exported, dependency-free) if you run your own server:
+
+```ts
+import { createAnalytics } from "pragmasearch";
+const analytics = createAnalytics();
+analytics.record({ query: "flying carpet", results: resp.total, zero: (resp.maxScore ?? 1) < 0.35, ms });
+analytics.summary({ topN: 20 }); // { zeroResultQueries, topQueries, latency, ... }
+```
+
 ## Demo server environment variables
 
 | Variable | Default | Description |
@@ -205,6 +238,8 @@ CLI: `pragmasearch search "keyboard" --rules rules.json`. Demo server: `PRAGMA_R
 | `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
 | `PRAGMA_SYNONYMS` | — | Path to a synonyms JSON file (see [Synonyms](#synonyms)) |
 | `PRAGMA_RANKING` | — | Path to a ranking-rules JSON file (see [Ranking rules](#ranking-rules--merchandising)) |
+| `PRAGMA_ANALYTICS` | — | Path to persist search analytics (see [Analytics](#analytics)); in-memory only if unset |
+| `PRAGMA_ZERO_FLOOR` | `0.35` | Top-similarity threshold below which a semantic query counts as zero-result |
 | `PRAGMA_MODEL_CACHE` | — | Directory to cache/bake model weights (used by the Dockerfile) |
 | `PRAGMA_ADMIN_TOKEN` | — | Bearer token that enables the live write endpoints (see below). Unset = writes disabled. |
 | `PRAGMA_CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` for the read API (set to your storefront origin) |

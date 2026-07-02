@@ -25,6 +25,9 @@ Thumbs.db
 # generated indexes — rebuilt from data/products.json (npm run demo:index) or at deploy
 pragmasearch-index*.json
 
+# local search-analytics store (PRAGMA_ANALYTICS)
+pragmasearch-analytics*.json
+
 # local/private datasets (not part of the public sample)
 data/products-itshop.json
 data/products-10k.json

@@ -227,6 +227,8 @@ export async function createSearcher(
 
     // 2. Rank the WHOLE filtered set (so pagination + totals are correct).
     let ranked: { id: string; score: number; signals: SearchSignal[] }[];
+    // Top cosine of the best semantic match (vector/hybrid only) — a relevance signal.
+    let maxScore: number | undefined;
 
     if (!q) {
       // Browse mode: no query → filtered set in catalog order (lets a UI filter without searching).
@@ -241,6 +243,7 @@ export async function createSearcher(
       const vScored = candidates
         .map((it) => ({ id: String(it.id), score: dot(queryVector, it.vector) }))
         .sort((a, b) => b.score - a.score);
+      maxScore = vScored.length ? vScored[0].score : undefined;
 
       if (mode === "vector") {
         ranked = vScored.map((r) => ({ id: r.id, score: r.score, signals: ["vector"] as SearchSignal[] }));
@@ -298,7 +301,7 @@ export async function createSearcher(
         ? computeFacets(candidates.map((it) => it.payload), opts.facets, opts.maxFacetValues ?? 20)
         : undefined;
 
-    return { hits, total, offset, limit, facets };
+    return { hits, total, offset, limit, facets, maxScore };
   }
 
   // ---- incremental updates (live catalog sync) ----

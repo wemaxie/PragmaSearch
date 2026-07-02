@@ -114,4 +114,11 @@ export interface SearchResponse {
   limit: number;
   /** Per requested field: value counts over the filtered set (for a refinement sidebar). */
   facets?: Record<string, FacetValue[]>;
+  /**
+   * Top cosine similarity (0..1) of the best semantic match, for `vector`/`hybrid`
+   * with a query. A low value means "nothing really matched" even though vector
+   * search still returns the nearest items — useful for a relevance floor and
+   * zero-result analytics. Undefined for `keyword`/browse.
+   */
+  maxScore?: number;
 }

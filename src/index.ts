@@ -63,6 +63,16 @@ export {
 export { buildSynonyms, type SynonymOptions } from "./synonyms.js";
 
 export {
+  createAnalytics,
+  normalizeQuery,
+  type Analytics,
+  type AnalyticsOptions,
+  type AnalyticsState,
+  type AnalyticsSummary,
+  type SearchEvent,
+} from "./analytics.js";
+
+export {
   applyRankingRules,
   type RankingRules,
   type RankingRule,

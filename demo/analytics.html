@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>PragmaSearch — search analytics</title>
+<style>
+  :root {
+    --bg: #0b0b0f; --panel: #16161a; --panel2: #1d1d22; --fg: #f4f4f5; --muted: #9aa1ad;
+    --border: #26262b; --accent: #7c5cff; --warn: #f59e0b; --danger: #f0997b; --ok: #5dcaa5;
+    --radius: 12px; --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); line-height: 1.5; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+  input[type=password] { flex: 1; min-width: 220px; background: var(--panel); border: 1px solid var(--border);
+    color: var(--fg); border-radius: 9px; padding: 9px 12px; font: inherit; font-size: 14px; }
+  button { background: var(--panel); border: 1px solid var(--border); color: var(--fg); border-radius: 9px;
+    padding: 9px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .msg { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .msg.err { color: var(--danger); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 8px 0 24px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .kpi .label { color: var(--muted); font-size: 12px; }
+  .kpi .val { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .kpi .val small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  section { margin-top: 26px; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .pill { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; }
+  .pill.warn { background: rgba(245,158,11,.14); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: var(--panel2); }
+  .q { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .zero td { color: #f6c6b0; }
+  .empty { color: var(--muted); padding: 22px 0; text-align: center; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Search analytics</h1>
+  <p class="sub">What people search, what returns nothing, and how fast. Data is gated by
+    <code>PRAGMA_ADMIN_TOKEN</code>. <a href="/">← demo</a></p>
+
+  <div class="bar">
+    <input id="token" type="password" placeholder="Admin token (PRAGMA_ADMIN_TOKEN)" autocomplete="off" />
+    <button class="primary" id="load">Load</button>
+    <button id="refresh">Refresh</button>
+    <button class="danger" id="clear">Clear</button>
+  </div>
+  <p class="msg" id="msg">Enter your admin token and press Load.</p>
+
+  <div id="dash" hidden>
+    <div class="kpis" id="kpis"></div>
+
+    <section>
+      <h2>Zero-result queries <span class="pill warn" id="zr-pill" hidden></span></h2>
+      <div id="zero"></div>
+    </section>
+
+    <section>
+      <h2>Top queries</h2>
+      <div id="top"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tokenEl = $("token");
+  tokenEl.value = localStorage.getItem("ps_admin_token") || "";
+
+  function setMsg(text, isErr) { const m = $("msg"); m.textContent = text; m.className = "msg" + (isErr ? " err" : ""); }
+  function ago(ts) {
+    if (!ts) return "—";
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 60) return s + "s ago";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    return new Date(ts).toLocaleDateString();
+  }
+
+  async function api(path, method) {
+    const token = tokenEl.value.trim();
+    localStorage.setItem("ps_admin_token", token);
+    const res = await fetch(path, { method: method || "GET", headers: { authorization: "Bearer " + token } });
+    if (!res.ok) {
+      let detail = res.status;
+      try { detail = (await res.json()).error || detail; } catch {}
+      throw new Error(String(detail));
+    }
+    return res.json();
+  }
+
+  function kpi(label, val, sub) {
+    return `<div class="kpi"><div class="label">${esc(label)}</div><div class="val">${esc(val)}${sub ? ` <small>${esc(sub)}</small>` : ""}</div></div>`;
+  }
+
+  function render(d) {
+    $("dash").hidden = false;
+    const zrPct = (d.zeroResultRate * 100).toFixed(1) + "%";
+    $("kpis").innerHTML =
+      kpi("Searches", d.totalSearches.toLocaleString(), d.emptySearches ? `+${d.emptySearches} browse` : "") +
+      kpi("Zero-result rate", zrPct, `${d.zeroResultSearches} of ${d.totalSearches}`) +
+      kpi("Distinct queries", d.distinctQueries.toLocaleString(), d.capped ? "capped" : "") +
+      kpi("Latency p50 / p95", `${d.latency.p50} / ${d.latency.p95}`, `ms · p99 ${d.latency.p99}`);
+
+    const zpill = $("zr-pill");
+    if (d.zeroResultQueries.length) { zpill.hidden = false; zpill.textContent = d.zeroResultQueries.length + " to fix"; }
+    else zpill.hidden = true;
+
+    $("zero").innerHTML = d.zeroResultQueries.length
+      ? `<table><thead><tr><th>Query</th><th class="num">Zero hits</th><th class="num">Searches</th><th class="num">Last seen</th></tr></thead><tbody>${
+          d.zeroResultQueries.map((r) => `<tr class="zero"><td class="q">${esc(r.query)}</td><td class="num">${r.zero}</td><td class="num">${r.searches}</td><td class="num">${esc(ago(r.lastSeen))}</td></tr>`).join("")
+        }</tbody></table>`
+      : `<div class="empty">No zero-result queries yet — nice.</div>`;
+
+    $("top").innerHTML = d.topQueries.length
+      ? `<table><thead><tr><th>Query</th><th class="num">Count</th><th class="num">Avg results</th><th class="num">Zero rate</th></tr></thead><tbody>${
+          d.topQueries.map((r) => `<tr><td class="q">${esc(r.query)}</td><td class="num">${r.count}</td><td class="num">${r.avgResults}</td><td class="num">${(r.zeroRate * 100).toFixed(0)}%</td></tr>`).join("")
+        }</tbody></table>`
+      : `<div class="empty">No searches recorded yet.</div>`;
+  }
+
+  async function load() {
+    try {
+      setMsg("Loading…");
+      const d = await api("/api/analytics?topN=50");
+      render(d);
+      setMsg(`Updated ${new Date().toLocaleTimeString()}.`);
+    } catch (e) {
+      $("dash").hidden = true;
+      setMsg("Could not load analytics: " + e.message + " (check the token / set PRAGMA_ADMIN_TOKEN).", true);
+    }
+  }
+
+  $("load").onclick = load;
+  $("refresh").onclick = load;
+  $("clear").onclick = async () => {
+    if (!confirm("Clear all recorded analytics?")) return;
+    try { await api("/api/analytics/reset", "POST"); await load(); }
+    catch (e) { setMsg("Clear failed: " + e.message, true); }
+  };
+  tokenEl.addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+  if (tokenEl.value) load();
+</script>
+</body>
+</html>

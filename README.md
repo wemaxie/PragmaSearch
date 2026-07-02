@@ -60,6 +60,7 @@ replace your hosted-search bill with $0.
 | **Filtering · faceting · pagination** | ✅ | ✅ |
 | **Result highlighting** | ✅ | ✅ |
 | **Synonyms · ranking rules** (boost/bury/pin) | ✅ | ✅ [docs](docs/configuration.md#synonyms) |
+| **Analytics** (top / zero-result queries) | ✅ | ✅ [docs](docs/configuration.md#analytics) |
 | **UI: drop-in widget + React** | ✅ | ✅ [widget](docs/widget.md) · [React](docs/react.md) |
 
 > Built for small-to-mid catalogs (≤ ~50k items). For million-SKU real-time catalogs with
@@ -137,6 +138,7 @@ Done: semantic + keyword hybrid search, typo tolerance, **filtering, faceting, p
 **[synonyms](docs/configuration.md#synonyms)** (multi-way + one-way query expansion),
 **[ranking rules](docs/configuration.md#ranking-rules--merchandising)** (boost / bury / pin),
 **incremental indexing** (patch price/stock without re-embedding; upsert embeds only the delta),
+**[search analytics](docs/configuration.md#analytics)** (top + zero-result queries, latency),
 multilingual, CLI + API + demo server. Next: a persisted keyword index and a compact/quantized
 index format — see **[ROADMAP.md](ROADMAP.md)**.
 

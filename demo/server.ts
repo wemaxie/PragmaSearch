@@ -9,7 +9,7 @@
  * Then open http://localhost:5173
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, isAbsolute } from "node:path";
 import { existsSync } from "node:fs";
@@ -19,6 +19,7 @@ import { gzipSync } from "node:zlib";
 import { buildIndex } from "../src/index-builder.js";
 import { createSearcher, type Searcher } from "../src/search.js";
 import { readProducts, saveIndex, loadIndex } from "../src/storage.js";
+import { createAnalytics, type AnalyticsState } from "../src/analytics.js";
 import type { SynonymOptions } from "../src/synonyms.js";
 import type { RankingRules } from "../src/ranking.js";
 import type { PragmaIndex, SearchMode, Product } from "../src/types.js";
@@ -40,10 +41,20 @@ const INDEX_FILE = fromEnv(
 );
 const PRODUCTS_FILE = fromEnv(process.env.PRAGMA_PRODUCTS, join(ROOT, "data", "products.json"));
 const HTML_FILE = join(__dirname, "index.html");
+const ANALYTICS_HTML_FILE = join(__dirname, "analytics.html");
 const WIDGET_DIR = join(ROOT, "widget");
+// Persist search analytics to this file (loaded on start, saved periodically) when set.
+const ANALYTICS_FILE = process.env.PRAGMA_ANALYTICS
+  ? fromEnv(process.env.PRAGMA_ANALYTICS, join(ROOT, "pragmasearch-analytics.json"))
+  : undefined;
 const PORT = Number(process.env.PORT ?? 5173);
 // Allow the drop-in widget to call the read API cross-origin (it runs on the shop's own site).
 const CORS_ORIGIN = process.env.PRAGMA_CORS_ORIGIN || "*";
+
+// Below this top cosine similarity, a vector/hybrid query is treated as "no strong
+// match" (zero-result) for analytics — semantic search always returns nearest items.
+// MiniLM/e5-scale default; tune per model via PRAGMA_ZERO_FLOOR.
+const ZERO_FLOOR = Number(process.env.PRAGMA_ZERO_FLOOR ?? 0.35);
 
 // Input + abuse limits for the public-facing demo.
 const MAX_QUERY_CHARS = 200; // queries longer than this are truncated (DoS guard)
@@ -194,6 +205,36 @@ async function main(): Promise<void> {
   if (rankingRules) console.log("  ranking rules enabled (PRAGMA_RANKING).");
   const searcher: Searcher = await createSearcher(index, { synonyms, rankingRules });
 
+  // Search analytics (top / zero-result queries, latency). Always recorded in
+  // memory; loaded from + persisted to PRAGMA_ANALYTICS when that file is set.
+  let analyticsSeed: AnalyticsState | undefined;
+  if (ANALYTICS_FILE && existsSync(ANALYTICS_FILE)) {
+    try {
+      analyticsSeed = JSON.parse(await readFile(ANALYTICS_FILE, "utf8")) as AnalyticsState;
+    } catch (e) {
+      console.warn(`PRAGMA_ANALYTICS: ignoring ${ANALYTICS_FILE} (${(e as Error).message})`);
+    }
+  }
+  const analytics = createAnalytics({}, analyticsSeed);
+  let analyticsDirty = false;
+  async function persistAnalytics(force = false): Promise<void> {
+    if (!ANALYTICS_FILE || (!analyticsDirty && !force)) return;
+    analyticsDirty = false;
+    try {
+      await writeFile(ANALYTICS_FILE, JSON.stringify(analytics.toJSON()));
+    } catch (e) {
+      console.warn(`analytics persist failed: ${(e as Error).message}`);
+    }
+  }
+  if (ANALYTICS_FILE) {
+    console.log(`  analytics enabled (PRAGMA_ANALYTICS → ${ANALYTICS_FILE}).`);
+    const timer = setInterval(() => void persistAnalytics(), 15_000);
+    timer.unref?.();
+    for (const sig of ["SIGINT", "SIGTERM"] as const) {
+      process.on(sig, () => void persistAnalytics(true).finally(() => process.exit(0)));
+    }
+  }
+
   // Lightweight title list for instant client-side autocomplete (no model call).
   // Rebuilt after live index updates.
   const buildTitlesBody = (): string =>
@@ -290,16 +331,60 @@ async function main(): Promise<void> {
         const t0 = performance.now();
         const resp = await searcher.search(q, k, { mode, typo, offset, facets, filter, highlight });
         const ms = +(performance.now() - t0).toFixed(1);
+        // Zero-result = nothing passed the filter, or (semantic) no match cleared the relevance floor.
+        const weakMatch = mode !== "keyword" && resp.maxScore != null && resp.maxScore < ZERO_FLOOR;
+        const zero = !!q && (resp.total === 0 || weakMatch);
+        analytics.record({ query: q, results: resp.total, zero, ms, mode, filtered: !!filter });
+        if (ANALYTICS_FILE) analyticsDirty = true;
         sendJson(req, res, 200, {
           query: q,
           mode,
           ms,
           count: index.meta.count,
           total: resp.total,
+          maxScore: resp.maxScore,
           offset: resp.offset,
           results: resp.hits,
           facets: resp.facets,
         });
+        return;
+      }
+
+      // ---- search analytics (dashboard is public shell; data requires the admin token) ----
+      if (req.method === "GET" && url.pathname === "/analytics") {
+        try {
+          send(req, res, 200, "text/html; charset=utf-8", await readFile(ANALYTICS_HTML_FILE, "utf8"));
+        } catch {
+          send(req, res, 404, "text/plain; charset=utf-8", "not found");
+        }
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/analytics") {
+        if (!authedWrite(req)) {
+          sendJson(req, res, ADMIN_TOKEN ? 401 : 403, {
+            error: ADMIN_TOKEN ? "unauthorized" : "analytics disabled (set PRAGMA_ADMIN_TOKEN)",
+          });
+          return;
+        }
+        const topN = Math.min(Math.max(Number(url.searchParams.get("topN") ?? 20) || 20, 1), 100);
+        sendJson(req, res, 200, analytics.summary({ topN }));
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/analytics/reset") {
+        if (!authedWrite(req)) {
+          sendJson(req, res, ADMIN_TOKEN ? 401 : 403, {
+            error: ADMIN_TOKEN ? "unauthorized" : "analytics disabled (set PRAGMA_ADMIN_TOKEN)",
+          });
+          return;
+        }
+        analytics.reset();
+        if (ANALYTICS_FILE) {
+          analyticsDirty = true;
+          await persistAnalytics(true);
+        }
+        sendJson(req, res, 200, { ok: true });
         return;
       }
 
