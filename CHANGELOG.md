@@ -7,6 +7,8 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-02
+
 ### Added
 - **React adapter** (`pragmasearch/react`) — native components (`<PragmaSearch>`,
   `<SearchBox>`, `<RefinementList>`, `<Hits>`, `<Pagination>`, `<ClearRefinements>`,

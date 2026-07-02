@@ -1,6 +1,6 @@
 {
   "name": "pragmasearch",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Open-source local-first semantic search engine. Drop in a products JSON, get hybrid (keyword + meaning) search with zero cloud, zero API keys, $0.",
   "type": "module",
   "license": "MIT",
