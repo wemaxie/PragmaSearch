@@ -54,4 +54,4 @@ Build an index from your products JSON and point the server at it:
 npx pragmasearch index your-products.json --out your-index.json
 npx tsx demo/server.ts your-index.json
 ```
-Set `PRAGMA_CHIPS` (pipe-separated) to customize the example queries shown in the UI.
+The example query chips in the demo UI are a fixed English set (edit `CHIPS` in `demo/server.ts` to change them).

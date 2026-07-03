@@ -66,7 +66,9 @@ const MAX_QUERY_CHARS = 200; // queries longer than this are truncated (DoS guar
 const RATE_LIMIT = 30; // requests per window per client
 const RATE_WINDOW_MS = 10_000;
 
-const DEFAULT_CHIPS = [
+// Example query chips shown in the UI — curated English semantic queries. Fixed
+// (not env-configurable) so a stray host env var can't override the demo's language.
+const CHIPS = [
   "something for gaming",
   "make fresh coffee at home",
   "a gift for a gamer",
@@ -74,9 +76,6 @@ const DEFAULT_CHIPS = [
   "listen to music on the go",
   "fast storage for my pc",
 ];
-const CHIPS = process.env.PRAGMA_CHIPS
-  ? process.env.PRAGMA_CHIPS.split("|").map((s) => s.trim()).filter(Boolean)
-  : DEFAULT_CHIPS;
 
 const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
@@ -308,17 +307,7 @@ async function main(): Promise<void> {
       }
 
       if (req.method === "GET" && url.pathname === "/api/meta") {
-        sendJson(req, res, 200, {
-          meta: index.meta,
-          chips: CHIPS,
-          // TEMP diagnostic: shows exactly what the running process sees, to trace
-          // where the chips come from (env override vs default). Remove after.
-          _diag: {
-            chipsEnvRaw: process.env.PRAGMA_CHIPS ?? null,
-            chipsSource: process.env.PRAGMA_CHIPS ? "PRAGMA_CHIPS env" : "DEFAULT_CHIPS",
-            commit: process.env.RAILWAY_GIT_COMMIT_SHA ?? null,
-          },
-        });
+        sendJson(req, res, 200, { meta: index.meta, chips: CHIPS });
         return;
       }
 

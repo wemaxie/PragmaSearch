@@ -6,6 +6,3 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /api/meta
-    envVars:
-      - key: PRAGMA_CHIPS
-        value: "something for gaming|make fresh coffee at home|a gift for a gamer|comfortable chair for long workdays|listen to music on the go|fast storage for my pc"

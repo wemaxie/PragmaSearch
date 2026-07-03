@@ -308,7 +308,6 @@ Both `serve` and `createSearchServer` read the same env vars below (`PORT`,
 | `PORT` | `5173` | Port to listen on (hosts like Railway/Render set this) |
 | `PRAGMA_INDEX` | `pragmasearch-index.json` | Index file to serve (or pass as the first CLI arg) |
 | `PRAGMA_PRODUCTS` | `data/products.json` | Products to build from if the index is missing |
-| `PRAGMA_CHIPS` | sample queries | Pipe-separated example queries shown as chips |
 | `PRAGMA_SYNONYMS` | — | Path to a synonyms JSON file (see [Synonyms](#synonyms)) |
 | `PRAGMA_RANKING` | — | Path to a ranking-rules JSON file (see [Ranking rules](#ranking-rules--merchandising)) |
 | `PRAGMA_TOKENIZER` | `english` | Keyword tokenizer preset (`english` / `minimal`); see [Non-English catalogs](#non-english-catalogs-tokenizer) |
