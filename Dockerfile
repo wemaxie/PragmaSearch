@@ -25,7 +25,7 @@ COPY . .
 RUN npx tsx src/cli.ts index data/products.json --out pragmasearch-index.json || echo "index build deferred to startup"
 
 # Example queries shown as chips in the UI.
-ENV PRAGMA_CHIPS="something for gaming|make fresh coffee at home|comfortable chair for long workdays|fast storage for my pc|wireless noise cancelling headphones"
+ENV PRAGMA_CHIPS="something for gaming|make fresh coffee at home|a gift for a gamer|comfortable chair for long workdays|listen to music on the go|fast storage for my pc"
 
 # Hosts inject $PORT; the server reads it (defaults to 5173 locally).
 EXPOSE 5173

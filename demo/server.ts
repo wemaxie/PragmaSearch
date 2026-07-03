@@ -69,9 +69,10 @@ const RATE_WINDOW_MS = 10_000;
 const DEFAULT_CHIPS = [
   "something for gaming",
   "make fresh coffee at home",
-  "comfortable seat for long workdays",
+  "a gift for a gamer",
+  "comfortable chair for long workdays",
   "listen to music on the go",
-  "work from home setup",
+  "fast storage for my pc",
 ];
 const CHIPS = process.env.PRAGMA_CHIPS
   ? process.env.PRAGMA_CHIPS.split("|").map((s) => s.trim()).filter(Boolean)
