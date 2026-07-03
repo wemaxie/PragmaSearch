@@ -22,6 +22,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm publish --provenance --access public
+      # Idempotent: skip publishing a version that's already on npm (e.g. published
+      # manually), so cutting a GitHub Release never fails on a re-publish.
+      - name: Publish if the version is new
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          if npm view "pragmasearch@$VER" version >/dev/null 2>&1; then
+            echo "pragmasearch@$VER is already published — skipping."
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

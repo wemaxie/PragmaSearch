@@ -178,6 +178,14 @@
         "&highlight=on&facets=" + encodeURIComponent(facetFields.join(","));
       if (filter) url += "&filter=" + encodeURIComponent(JSON.stringify(filter));
       fetch(url, { signal: ctrl.signal }).then(function (r) { return r.json(); }).then(function (data) {
+        // Relevance floor: if the best semantic match is too weak, show "no strong
+        // match" instead of the nearest-but-irrelevant items (textContent = XSS-safe).
+        if (q && typeof data.maxScore === "number" && data.maxScore < 0.35) {
+          hitsEl.innerHTML = "";
+          emptyEl.textContent = 'No strong match for "' + q + '".';
+          facetsEl.hidden = true; pagerEl.hidden = true;
+          return;
+        }
         renderHits(data); renderFacets(data.facets); renderPager(data.total);
       }).catch(function () {});
     }

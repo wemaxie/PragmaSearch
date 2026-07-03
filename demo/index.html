@@ -417,6 +417,20 @@
           if (filter) url += `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
           const res = await fetch(url, { signal: ctrl.signal });
           const data = await res.json();
+          // Relevance floor: for a semantic query (vector/hybrid), if the best match's
+          // similarity is below the floor, nothing is really relevant — show an honest
+          // "no strong match" instead of the nearest-but-irrelevant items.
+          const FLOOR = 0.35;
+          if (q && typeof data.maxScore === "number" && data.maxScore < FLOOR) {
+            resultsEl.innerHTML = "";
+            latencyEl.innerHTML = `<b>${data.ms ?? 0}</b> ms`;
+            emptyEl.style.display = "block";
+            emptyEl.innerHTML = `No strong match for “${esc(q)}”. ` +
+              `<span style="color:var(--faint)">Nothing in the catalog is close enough (this English demo uses a small model).</span>`;
+            facetsEl.hidden = true; facetsEl.innerHTML = "";
+            pagerEl.hidden = true;
+            return;
+          }
           render(data);
           renderFacets(data.facets);
           renderPager(data.total);

@@ -7,6 +7,14 @@ change between minor versions — pin the version you depend on.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-07-02
+
+### Fixed
+- **Demo + widget now honor the relevance floor**: a query whose best semantic
+  match is below `maxScore` 0.35 shows an honest "No strong match" instead of the
+  nearest-but-irrelevant items. Previously an off-catalog or non-English query
+  (e.g. a Serbian phrase against the English demo model) displayed garbage results.
+
 ## [0.9.0] - 2026-07-02
 
 Code-quality pass — no new features. Fixes from a multi-agent audit, each
