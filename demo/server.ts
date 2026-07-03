@@ -308,7 +308,17 @@ async function main(): Promise<void> {
       }
 
       if (req.method === "GET" && url.pathname === "/api/meta") {
-        sendJson(req, res, 200, { meta: index.meta, chips: CHIPS });
+        sendJson(req, res, 200, {
+          meta: index.meta,
+          chips: CHIPS,
+          // TEMP diagnostic: shows exactly what the running process sees, to trace
+          // where the chips come from (env override vs default). Remove after.
+          _diag: {
+            chipsEnvRaw: process.env.PRAGMA_CHIPS ?? null,
+            chipsSource: process.env.PRAGMA_CHIPS ? "PRAGMA_CHIPS env" : "DEFAULT_CHIPS",
+            commit: process.env.RAILWAY_GIT_COMMIT_SHA ?? null,
+          },
+        });
         return;
       }
 
