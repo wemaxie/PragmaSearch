@@ -71,9 +71,9 @@ const RATE_WINDOW_MS = 10_000;
 const CHIPS = [
   "something for gaming",
   "make fresh coffee at home",
-  "a gift for a gamer",
+  "earbuds for the gym",
   "comfortable chair for long workdays",
-  "listen to music on the go",
+  "a powerful graphics card",
   "fast storage for my pc",
 ];
 
